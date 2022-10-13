@@ -1,0 +1,8 @@
+*.exe
+/.vscode
+
+*.py
+
+*.gif
+*.mp4
+*.jpg
