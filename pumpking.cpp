@@ -32,8 +32,10 @@ private:
 
 	// Size of one square on the chess board.
 	int unit;
-	// Dark and Light colors for the chess board.
-	olc::Pixel dark, light;
+	// Size of a chess piece sprite in pixels.
+	float pieceSize;
+	// Colors for the chess board.
+	olc::Pixel light, dark, background;
 
 public:
 	bool OnUserCreate() override {
@@ -89,11 +91,15 @@ public:
 		screenWidth = ScreenWidth();
 		screenHeight = ScreenHeight();
 		unit = std::min(screenWidth, screenHeight) / 10;
+		pieceSize = pieces[WHITE][ROOK]->sprite->width;
 
-		dark = {91, 156, 254};
-		light = {220, 238, 255};
+		light = {235, 236, 208};
+		dark = {119, 149, 86};
+		background = {49, 46, 43};
 
-		Clear(dark);
+		Clear(background);
+		int trim = unit / 4;
+		FillRect({unit - trim, unit - trim}, {8 * unit + 2 * trim, 8 * unit + 2 * trim}, {0, 0, 0});
 
 		// Draw Chess Board.
 		for (int file = 0; file < 8; file++) {
@@ -105,7 +111,8 @@ public:
 			}
 		}
 
-		from_fen(chessboard, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+		chessboard = new Board();
+		board_from_fen(chessboard, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
 		return true;
 	}
@@ -131,16 +138,14 @@ public:
 
 	// Draw the pieces on the board.
 	void DrawBoard() {
-		// All chess piece sprites have the same dimensions.
-		float pieceSize = pieces[WHITE][ROOK]->sprite->width;
 		olc::vf2d scale = {(float) unit / pieceSize, (float) unit / pieceSize};
 		for (int file = 0; file < 8; file++) {
 			for (int rank = 0; rank < 8; rank++) {
 				int index = file * 8 + rank;
 				Piece piece = get_piece(chessboard, index);
-				Piece color = get_color(chessboard, index);
 				if (piece != 0) {
-					olc::vf2d pos = {(float) rank * unit + unit, (float) file * unit + unit};
+					Piece color = get_color(chessboard, index);
+					olc::vf2d pos = {(float) (7 - rank) * unit + unit, (float) (7 - file) * unit + unit};
 					DrawDecal(pos, pieces[color][piece], scale);
 				}
 			}
@@ -150,7 +155,7 @@ public:
 
 int main() {
 	Chess demo;
-	if (demo.Construct(500, 500, 1, 1))
+	if (demo.Construct(800, 800, 1, 1))
 		demo.Start();
 
 	return 0;

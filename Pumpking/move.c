@@ -1,12 +1,9 @@
-#include <stdint.h>
-#include "board.h"
-#include "bitboard.h"
 #include "move.h"
 
 int extract_moves_pawns(Bitboard board, int8_t offset, Move* moves, int start, Flag flag) {
     while (board != 0) {
         uint8_t pos = LSB(board);
-        board = clear_bit(board, pos);
+        board = CLEAR_BIT(board, pos);
         Move* move = &moves[start++];
         move->to = pos; move->from = pos - offset; move->flags = flag;
     }
@@ -17,7 +14,7 @@ int extract_moves_pawns(Bitboard board, int8_t offset, Move* moves, int start, F
 int extract_moves_pawns_promotions(Bitboard board, int8_t offset, Move* moves, int start, Flag flag) {
     while (board != 0) {
         uint8_t pos = LSB(board);
-        board = clear_bit(board, pos);
+        board = CLEAR_BIT(board, pos);
         Move* move;
         move = &moves[start++];
         move->to = pos; move->from = pos - offset; move->flags = ADD_PROMOTED_PIECE(QUEEN) | flag;
@@ -119,7 +116,7 @@ int gen_pawn_promotions_captures(Board* board, Move* moves, int index) {
 
 int gen_pawn_en_passant(Board* board, Move* moves, int index) {
     Bitboard pawns = get_pieces(board, PAWN, board->active_color);
-    Bitboard en_passant = 1 << board->en_passant;
+    Bitboard en_passant = 1ULL << board->en_passant;
 
     if (WHITE_TO_MOVE(board)) {
         Bitboard capture_left = ((pawns & ~FILEA) << 9) & en_passant;
@@ -139,7 +136,7 @@ int gen_pawn_en_passant(Board* board, Move* moves, int index) {
 int extract_moves(Bitboard board, int8_t init, Move* moves, int start, Flag flag) {
     while (board != 0) {
         uint8_t pos = LSB(board);
-        board = clear_bit(board, pos);
+        board = CLEAR_BIT(board, pos);
         Move* move = &moves[start++];
         move->to = pos; move->from = init; move->flags = flag;
     }
@@ -154,7 +151,7 @@ int gen_knight_moves(Board* board, Move* moves, int index) {
 
     while (knights != 0) {
         uint8_t pos = LSB(knights);
-        knights = clear_bit(knights, pos);
+        knights = CLEAR_BIT(knights, pos);
         index = extract_moves(knight_moves[pos] & empty, pos, moves, index, QUIET);
         index = extract_moves(knight_moves[pos] & enemies, pos, moves, index, CAPTURE);
     }
@@ -231,7 +228,7 @@ int gen_cardinal_moves(Board* board, Move* moves, int index, Piece piece) {
 
     while (cardinal != 0) {
         uint8_t pos = LSB(cardinal);
-        cardinal = clear_bit(cardinal, pos);
+        cardinal = CLEAR_BIT(cardinal, pos);
 
         int ai, qi;
         Bitboard ray;
@@ -276,7 +273,7 @@ int gen_intercardinal_moves(Board* board, Move* moves, int index, Piece piece) {
 
     while (intercardinal != 0) {
         uint8_t pos = LSB(intercardinal);
-        intercardinal = clear_bit(intercardinal, pos);
+        intercardinal = CLEAR_BIT(intercardinal, pos);
 
         int ai, qi;
         Bitboard ray;
@@ -323,7 +320,7 @@ Bitboard gen_cardinal_attacks(Board* board, Piece piece) {
 
     while (cardinal != 0) {
         uint8_t pos = LSB(cardinal);
-        cardinal = clear_bit(cardinal, pos);
+        cardinal = CLEAR_BIT(cardinal, pos);
 
         int ai, qi;
         Bitboard ray;
@@ -366,7 +363,7 @@ Bitboard gen_intercardinal_attacks(Board* board, Piece piece) {
 
     while (intercardinal != 0) {
         uint8_t pos = LSB(intercardinal);
-        intercardinal = clear_bit(intercardinal, pos);
+        intercardinal = CLEAR_BIT(intercardinal, pos);
 
         int ai, qi;
         Bitboard ray;
@@ -420,7 +417,7 @@ Bitboard gen_attacks(Board* board) {
     Bitboard knights = get_pieces(board, KNIGHT, active);
     while (knights != 0) {
         uint8_t pos = LSB(knights);
-        knights = clear_bit(knights, pos);
+        knights = CLEAR_BIT(knights, pos);
         attacks |= knight_moves[pos];
     }
 
@@ -470,4 +467,169 @@ int gen_legal_moves(Board* board, Move* moves) {
     }
 
     return size;
+}
+
+void make_move(Board* board, Move* move) {
+    uint8_t src = move->from;
+    uint8_t dst = move->to;
+
+    Piece src_piece = board->positions[src];
+    Piece dst_piece = board->positions[dst];
+
+    Flag flags = move->flags;
+
+    Piece active = board->active_color;
+    Piece inactive = OPPOSITE(active);
+
+    // If King moved and it wasn't a castle and we still could have castled, then the player can no longer castle.
+    if (src_piece == KING && !IS_CASTLE(flags) && can_castle(board, active)) {
+        remove_castle_kingside(board, active);
+        remove_castle_queenside(board, active);
+        move->flags |= CASTLING_LOST;
+    }
+
+    // If any of the rooks moved from one of the corners, then the player can no longer castle on that side.
+    if (src_piece == ROOK) {
+        if (src == H1 || src == H8) {
+            remove_castle_kingside(board, active);
+            move->flags |= CASTLING_LOST_KINGSIDE;
+        } else if (src == A1 || src == A8) {
+            remove_castle_queenside(board, active);
+            move->flags |= CASTLING_LOST_QUEENSIDE;
+        }
+    }
+
+    // Set the previous en passant square in the flag.
+    move->flags |= SET_EN_PASSANT(board->en_passant);
+
+    if (IS_CAPTURE(flags)) {
+        // Add Captured Piece to Move flag.
+        move->flags |= SET_CAPTURED_PIECE(dst_piece);
+
+        // If a rook is captured, then remove the other players ability to castle on that side.
+        if (dst_piece == ROOK) {
+            if (dst == H1 || dst == H8) {
+                remove_castle_kingside(board, inactive);
+                move->flags |= CASTLING_LOST_KINGSIDE;
+            } else if (dst == A1 || dst == A8) {
+                remove_castle_queenside(board, inactive);
+                move->flags |= CASTLING_LOST_QUEENSIDE;
+            }
+        }
+
+        // board->positions[src] == PAWN && get_en_passant(board, OPPOSITE(board->active_color)) == dst
+        if (IS_EN_PASSANT(flags)) {
+            int8_t offset = WHITE_TO_MOVE(board) ? -8 : 8;
+            remove_piece(board, PAWN, inactive, dst + offset);
+            // Remove the en passant square once the en passant capture happens.
+            board->en_passant = 0;
+        } else {
+            remove_piece(board, dst_piece, inactive, dst);
+        }
+    }
+
+    remove_piece(board, src_piece, active, src);
+
+    if (IS_PROMOTION(flags)) {
+        // If the flag is a promotion, the top 3 bits contain the piece promoted.
+        add_piece(board, PROMOTED_PIECE(flags), active, dst);
+    } else {
+        add_piece(board, src_piece, active, dst);
+    }
+
+    if (IS_DOUBLE_PUSH(flags)) {
+        int8_t offset = WHITE_TO_MOVE(board) ? -8 : 8;
+        board->en_passant = dst + offset;
+    } else {
+        // If the right to capture en passant is not exercised immediately, it is subsequently lost.
+        board->en_passant = 0;
+    }
+
+    // If the move was a castle, move the rook to the corresponding position.
+    if (IS_CASTLE_KINGSIDE(flags)) {
+        move->flags |= CASTLING_LOST_KINGSIDE;
+        if (WHITE_TO_MOVE(board)) {
+            remove_piece(board, ROOK, active, H1);
+            add_piece(board, ROOK, active, F1);
+        } else {
+            remove_piece(board, ROOK, active, H8);
+            add_piece(board, ROOK, active, F8);
+        }
+        remove_castle_kingside(board, active);
+    } else if (IS_CASTLE_QUEENSIDE(flags)) {
+        move->flags |= CASTLING_LOST_QUEENSIDE;
+        if (WHITE_TO_MOVE(board)) {
+            remove_piece(board, ROOK, active, A1);
+            add_piece(board, ROOK, active, D1);
+        } else {
+            remove_piece(board, ROOK, active, A8);
+            add_piece(board, ROOK, active, D8);
+        }
+        remove_castle_queenside(board, active);
+    }
+}
+
+void undo_move(Board* board, Move* move) {
+    uint8_t src = move->from;
+    uint8_t dst = move->to;
+
+    Piece src_piece = board->positions[src];
+    Piece dst_piece = board->positions[dst];
+
+    Flag flags = move->flags;
+
+    Piece active = board->active_color;
+    Piece inactive = OPPOSITE(active);
+
+    remove_piece(board, dst_piece, active, dst);
+    if (IS_CAPTURE(flags)) {
+        if (IS_EN_PASSANT(flags)) {
+            int8_t offset = WHITE_TO_MOVE(board) ? -8 : 8;
+            add_piece(board, PAWN, inactive, dst + offset);
+        } else {
+            add_piece(board, EXTRACT_CAPTURED_PIECE(flags), inactive, dst);
+        }
+        // Remove Captured Piece from Move flag.
+        move->flags &= ~SET_CAPTURED_PIECE(dst_piece);
+    }
+    
+    if (IS_PROMOTION(flags)) {
+        add_piece(board, PAWN, active, src);
+    } else {
+        add_piece(board, dst_piece, active, src);
+    }
+
+    uint8_t offset = WHITE_TO_MOVE(board) ? 40 : 16;
+    uint8_t en_passant = EXTRACT_EN_PASSANT(flags) + offset;
+    board->en_passant = en_passant;
+    // Remove the previous en passant square in the flag.
+    move->flags &= ~SET_EN_PASSANT(en_passant);
+
+    if (IS_CASTLING_LOST_KINGSIDE(flags)) {
+        add_castle_kingside(board, IS_CAPTURE(flags) ? inactive : active);
+        move->flags &= ~CASTLING_LOST_KINGSIDE;
+    }
+
+    if (IS_CASTLING_LOST_QUEENSIDE(flags)) {
+        add_castle_queenside(board, IS_CAPTURE(flags) ? inactive : active);
+        move->flags &= ~CASTLING_LOST_QUEENSIDE;
+    }
+
+    if (IS_CASTLE_KINGSIDE(flags)) {
+        if (WHITE_TO_MOVE(board)) {
+            remove_piece(board, ROOK, active, F1);
+            add_piece(board, ROOK, active, H1);
+        } else {
+            remove_piece(board, ROOK, inactive, F8);
+            add_piece(board, ROOK, inactive, H8);
+        }
+    } else if (IS_CASTLE_QUEENSIDE(flags)) {
+        if (WHITE_TO_MOVE(board)) {
+            remove_piece(board, ROOK, active, D1);
+            add_piece(board, ROOK, active, A1);
+        } else {
+            remove_piece(board, ROOK, inactive, D8);
+            add_piece(board, ROOK, inactive, A8);
+        }
+    }
 }
