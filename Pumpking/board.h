@@ -15,6 +15,7 @@ typedef uint8_t Piece;
 #define KING 0b011
 #define BLACK 0b111
 #define WHITE 0b000
+#define DRAW 0b001
 
 #define OPPOSITE(x) ((x) ^ BLACK)
 #define WHITE_TO_MOVE(x) (((x)->active_color) == 0)

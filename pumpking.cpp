@@ -28,13 +28,13 @@ private:
 
 	Board* chessboard;
 
-	std::map<byte, std::map<byte, olc::Decal*>> pieces;
+	std::unordered_map<byte, std::unordered_map<byte, olc::Decal*>> pieces;
 	std::vector<int> audio;
 
-	// Moves the player can make as indices on the board.
+	// Moves the player can make on every square of the board.
 	std::vector<Move*> possible[64];
 	// Previously selected square.
-	int selected;
+	int selectedSource;
 	int selectedDestination;
 
 	// Moves the player can make.
@@ -47,8 +47,15 @@ private:
 	// Colors for the chess board.
 	olc::Pixel light, dark, background, highlight;
 
+	// Flags for Pawn Promotions.
 	bool isPromotion;
 	Piece promoted;
+
+	bool gameOver;
+	Piece winner; // WHITE, BLACK, or DRAW.
+
+	// Used to track duplicate move destination spots to avoid redrawing circles.
+	std::unordered_map<int, int> possible_spots;
 
 public:
 	bool OnUserCreate() override {
@@ -113,8 +120,11 @@ public:
 
 		isPromotion = false;
 		promoted = 0;
+
+		gameOver = false;
+		winner = 0;
 		
-		selected = -1;
+		selectedSource = -1;
 		selectedDestination = -1;
 
 		chessboard = new Board();
@@ -129,36 +139,39 @@ public:
 	bool OnUserUpdate(float fElapsedTime) override {
 		DrawPieces();
 
+		if (gameOver) {
+			std::string text;
+			switch (winner) {
+				case WHITE:
+					text = "White Wins!";
+					break;
+				case BLACK:
+					text = "Black Wins!";
+					break;
+				case DRAW:
+					text = "Draw";
+					break;
+			}
+			DrawStringDecal({10, 10}, text, {255, 255, 255}, {5, 5});
+			return true;
+		}
+
 		if (isPromotion) {
 			DrawPromotion();
+			// Check if piece is a Queen, Bishop, Rook or Knight.
 			if (promoted != 0) {
 				isPromotion = false;
-				for (const auto& move : possible[selected]) {
-					if (move->to == selectedDestination && IS_PROMOTION(move->flags) && PROMOTED_PIECE(move->flags) == promoted) {
-						if (IS_CAPTURE(move->flags)) {
-							olc::SOUND::PlaySample(audio[CAPTURE_AUDIO]);
-						} else {
-							olc::SOUND::PlaySample(audio[MOVE_AUDIO]);
-						}
-						make_move(chessboard, move);
-						switch_ply(chessboard);
-						GenerateMoves();
-						DrawBoard();
-
-						// Highlight the source and destination squares of the most recently made move.
-						FillRect({unit * (7 - selected % 8) + unit, unit * (7 - selected / 8) + unit}, {unit, unit}, highlight);
-						FillRect({unit * (7 - selectedDestination % 8) + unit, unit * (7 - selectedDestination / 8) + unit}, {unit, unit}, highlight);
-						break;
-					}
-				}
+				HandlePromotion();
 				promoted = 0;
 			}
-		} else if (GetMouse(0).bPressed) {
-			olc::vf2d mouse = { (float) GetMouseX(), (float) GetMouseY() };
-			int file = (mouse.x - unit) / unit;
-			file = 7 - file;
-			int rank = (mouse.y - unit) / unit;
-			rank = 7 - rank;
+			return true;
+		}
+		
+		// If the user clicks on a piece, show possible moves and allow user to make a move.
+		if (GetMouse(0).bPressed) {
+			olc::vi2d mouse = {GetMouseX(), GetMouseY()};
+			int file = 7 - ((mouse.x - unit) / unit);
+			int rank = 7 - ((mouse.y - unit) / unit);
 
 			if (file >= 0 && file <= 7 && rank >= 0 && rank <= 7) {
 				DrawBoard();
@@ -166,62 +179,25 @@ public:
 
 				int index = rank * 8 + file;
 
-				Move* to_make = nullptr;
-				if (selected != -1) {
-					for (const auto& move : possible[selected]) {
+				Move* selected = nullptr;
+				if (selectedSource != -1) {
+					for (const auto& move : possible[selectedSource]) {
 						if (move->to == index) {
-							to_make = move;
+							selected = move;
 							break;
 						}
 					}
 				}
 
-				if (to_make != nullptr) {
+				if (selected != nullptr) {
 					selectedDestination = index;
-					// Highlight the source and destination squares of the most recently made move.
-					FillRect({unit * (7 - selected % 8) + unit, unit * (7 - selected / 8) + unit}, {unit, unit}, highlight);
-					FillRect({unit * (7 - index % 8) + unit, unit * (7 - index / 8) + unit}, {unit, unit}, highlight);
-					if (IS_CAPTURE(to_make->flags)) {
-						olc::SOUND::PlaySample(audio[CAPTURE_AUDIO]);
-					} else {
-						olc::SOUND::PlaySample(audio[MOVE_AUDIO]);
-					}
-
-					if (IS_PROMOTION(to_make->flags)) {
-						isPromotion = true;
-					} else {
-						make_move(chessboard, to_make);
-						switch_ply(chessboard);
-						GenerateMoves();
-					}
+					MakeMove(selected, index);
 				} else {
-					selected = index;
-					SetPixelMode(olc::Pixel::ALPHA);
-					int prev = 0;
-					for (const auto& move : possible[index]) {
-						if (prev == move->to) continue; // Check for duplicates.
-						prev = move->to;
-
-						int r = 7 - move->to % 8;
-						int f = 7 - move->to / 8;
-
-						olc::vi2d center = {r * unit + unit * 3 / 2, f * unit + unit * 3 / 2};
-						if (IS_CAPTURE(move->flags) && !IS_EN_PASSANT(move->flags)) {
-							FillCircle(center, unit / 2.1, {0, 0, 0, 100});
-							FillCircle(center, unit / 2.75, (r + f) % 2 != 0 ? dark : light);
-						} else {
-							FillCircle(center, unit / 5, {0, 0, 0, 100});
-						}
-					}
-					SetPixelMode(olc::Pixel::NORMAL);
+					selectedSource = index;
+					ShowPossibleMoves(index);
 				}
 			}
 		}
-
-		// if (GetKey(olc::Key::Q).bPressed) olc::SOUND::PlaySample(audio[CAPTURE_AUDIO]);
-		// if (GetKey(olc::Key::W).bPressed) olc::SOUND::PlaySample(audio[END_AUDIO]);
-		// if (GetKey(olc::Key::E).bPressed) olc::SOUND::PlaySample(audio[MOVE_AUDIO]);
-		// if (GetKey(olc::Key::R).bPressed) olc::SOUND::PlaySample(audio[WARNING_AUDIO]);
 
 		return true;
 	}
@@ -230,6 +206,81 @@ public:
 		olc::SOUND::DestroyAudio();
 
 		return true;
+	}
+
+	// Integer to vector. Flattened index to rank and file.
+	olc::vi2d Itof(int index) {
+		return {7 - index & 7, 7 - index / 8};
+	}
+
+	// Show Possible moves from a given source square.
+	void ShowPossibleMoves(int source) {
+		SetPixelMode(olc::Pixel::ALPHA);
+		possible_spots.clear();
+		for (const auto& move : possible[source]) {
+			// Check for duplicates destination spots.
+			if (possible_spots.find(move->to) != possible_spots.end()) continue;
+			possible_spots[move->to] = 0;
+
+			olc::vi2d rf = Itof(move->to);
+			olc::vi2d center = {rf.x * unit + unit * 3 / 2, rf.y * unit + unit * 3 / 2};
+			if (IS_CAPTURE(move->flags) && !IS_EN_PASSANT(move->flags)) {
+				FillCircle(center, unit / 2.1, {0, 0, 0, 100});
+				FillCircle(center, unit / 2.75, (rf.x + rf.y) % 2 != 0 ? dark : light);
+			} else {
+				FillCircle(center, unit / 5, {0, 0, 0, 100});
+			}
+		}
+		SetPixelMode(olc::Pixel::NORMAL);
+	}
+
+	// Make a move to the selected destination.
+	void MakeMove(Move* move, int destination) {
+		// Highlight the source and destination squares of the most recently made move.
+		olc::vi2d rfs = Itof(selectedSource), rfd = Itof(destination);
+		FillRect({unit * rfs.x + unit, unit * rfs.y + unit}, {unit, unit}, highlight);
+		FillRect({unit * rfd.x + unit, unit * rfd.y + unit}, {unit, unit}, highlight);
+
+		// If the move was a pawn promotion, show the pawn promotion GUI to allow user to select the
+		// piece they want to promote to (Queen, Bishop, Rook, Knight).
+		if (IS_PROMOTION(move->flags)) {
+			isPromotion = true;
+		} else {
+			if (IS_CAPTURE(move->flags) || IS_CASTLE(move->flags)) {
+				olc::SOUND::PlaySample(audio[CAPTURE_AUDIO]);
+			} else {
+				olc::SOUND::PlaySample(audio[MOVE_AUDIO]);
+			}
+
+			make_move(chessboard, move);
+			switch_ply(chessboard);
+			GenerateMoves();
+		}
+	}
+
+	// Once the user selects a piece to promote, make the corresponding move on the board.
+	void HandlePromotion() {
+		for (const auto& move : possible[selectedSource]) {
+			if (move->to == selectedDestination && IS_PROMOTION(move->flags) && PROMOTED_PIECE(move->flags) == promoted) {
+				if (IS_CAPTURE(move->flags)) {
+					olc::SOUND::PlaySample(audio[CAPTURE_AUDIO]);
+				} else {
+					olc::SOUND::PlaySample(audio[MOVE_AUDIO]);
+				}
+
+				make_move(chessboard, move);
+				switch_ply(chessboard);
+
+				GenerateMoves();
+				DrawBoard();
+
+				// Highlight the source and destination squares of the most recently made move.
+				olc::vi2d rfs = Itof(selectedSource), rfsd = Itof(selectedDestination);
+				FillRect({unit * rfs.x + unit, unit * rfs.y + unit}, {unit, unit}, highlight);
+				FillRect({unit * rfsd.x + unit, unit * rfsd.y + unit}, {unit, unit}, highlight);
+				break;
+			}
+		}
 	}
 
 	// Draw Screen for Pawn Promotions allowing user to selected promoted piece.
@@ -248,11 +299,11 @@ public:
 		olc::vf2d bottom_left = {(float) cx - size / 2, (float) cy};
 		olc::vf2d bottom_right = {(float) cx, (float) cy};
 
-		olc::vf2d mouse = {(float) GetMouseX(), (float) GetMouseY()};
-
 		auto overlap = [](olc::vf2d p1, olc::vf2d p2, int size) {
 			return p2.x <= p1.x && p1.x <= p2.x + size && p2.y <= p1.y && p1.y <= p2.y + size;
 		};
+		
+		olc::vf2d mouse = {(float) GetMouseX(), (float) GetMouseY()};
 
 		bool tl = overlap(mouse, top_left, size / 2);
 		bool tr = overlap(mouse, top_right, size / 2);
@@ -287,7 +338,6 @@ public:
 		for (int file = 0; file < 8; file++) {
 			for (int rank = 0; rank < 8; rank++) {
 				bool color = (file + rank) % 2 != 0;
-
 				olc::vf2d pos = {(float) rank * unit + unit, (float) file * unit + unit};
 				FillRect(pos, {unit, unit}, color ? dark : light);
 			}
@@ -297,42 +347,35 @@ public:
 	// Draw the pieces on the board.
 	void DrawPieces() {
 		olc::vf2d scale = {(float) unit / pieceSize, (float) unit / pieceSize};
-
-		if (isPromotion) {
-			// If the promotion screen is up, then do not draw pieces on ranks 3-6 and files c-f.
-			for (int file = 0; file < 8; file++) {
-				for (int rank = 0; rank < 8; rank++) {
-					if (file >= 2 && file <= 5 && rank >= 2 && rank <= 5) continue;
-					int index = file * 8 + rank;
-					Piece piece = get_piece(chessboard, index);
-					if (piece != 0) {
-						Piece color = get_color(chessboard, index);
-						olc::vf2d pos = {(float) (7 - rank) * unit + unit, (float) (7 - file) * unit + unit};
-						DrawDecal(pos, pieces[color][piece], scale);
-					}
-				}
-			}
-		} else {
-			for (int file = 0; file < 8; file++) {
-				for (int rank = 0; rank < 8; rank++) {
-					int index = file * 8 + rank;
-					Piece piece = get_piece(chessboard, index);
-					if (piece != 0) {
-						Piece color = get_color(chessboard, index);
-						olc::vf2d pos = {(float) (7 - rank) * unit + unit, (float) (7 - file) * unit + unit};
-						DrawDecal(pos, pieces[color][piece], scale);
-					}
+		for (int file = 0; file < 8; file++) {
+			for (int rank = 0; rank < 8; rank++) {
+				// If the promotion screen is up, then do not draw pieces on ranks 3-6 and files c-f
+				// since this area is covered by the promotion selection GUI.
+				if (isPromotion && file >= 2 && file <= 5 && rank >= 2 && rank <= 5) continue;
+				int index = file * 8 + rank;
+				Piece piece = get_piece(chessboard, index);
+				if (piece != 0) {
+					Piece color = get_color(chessboard, index);
+					olc::vi2d rf = Itof(index);
+					DrawDecal({(float) rf.x * unit + unit, (float) rf.y * unit + unit}, pieces[color][piece], scale);
 				}
 			}
 		}
 	}
 
+	// Generate all possible moves for the current player.
 	void GenerateMoves() {
 		for (int i = 0; i < 64; i++) {
 			possible[i].clear();
 		}
 
 		int legal = gen_legal_moves(chessboard, moves);
+
+		if (legal == 0) {
+			gameOver = true;
+			winner = OPPOSITE(chessboard->active_color);
+			return;
+		}
 
 		for (int i = 0; i < legal; i++) {
 			Move* move = &moves[i];
