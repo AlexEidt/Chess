@@ -144,7 +144,10 @@ public:
 						switch_ply(chessboard);
 						GenerateMoves();
 						DrawBoard();
-						DrawPieces();
+
+						// Highlight the source and destination squares of the most recently made move.
+						FillRect({unit * (7 - selected % 8) + unit, unit * (7 - selected / 8) + unit}, {unit, unit}, highlight);
+						FillRect({unit * (7 - selectedDestination % 8) + unit, unit * (7 - selectedDestination / 8) + unit}, {unit, unit}, highlight);
 						break;
 					}
 				}
@@ -175,6 +178,7 @@ public:
 
 				if (to_make != nullptr) {
 					selectedDestination = index;
+					// Highlight the source and destination squares of the most recently made move.
 					FillRect({unit * (7 - selected % 8) + unit, unit * (7 - selected / 8) + unit}, {unit, unit}, highlight);
 					FillRect({unit * (7 - index % 8) + unit, unit * (7 - index / 8) + unit}, {unit, unit}, highlight);
 					if (IS_CAPTURE(to_make->flags)) {
@@ -193,10 +197,21 @@ public:
 				} else {
 					selected = index;
 					SetPixelMode(olc::Pixel::ALPHA);
+					int prev = 0;
 					for (const auto& move : possible[index]) {
+						if (prev == move->to) continue; // Check for duplicates.
+						prev = move->to;
+
 						int r = 7 - move->to % 8;
 						int f = 7 - move->to / 8;
-						FillCircle({r * unit + unit * 3 / 2, f * unit + unit * 3 / 2}, unit / 5, {0, 0, 0, 100});
+
+						olc::vi2d center = {r * unit + unit * 3 / 2, f * unit + unit * 3 / 2};
+						if (IS_CAPTURE(move->flags) && !IS_EN_PASSANT(move->flags)) {
+							FillCircle(center, unit / 2.1, {0, 0, 0, 100});
+							FillCircle(center, unit / 2.75, (r + f) % 2 != 0 ? dark : light);
+						} else {
+							FillCircle(center, unit / 5, {0, 0, 0, 100});
+						}
 					}
 					SetPixelMode(olc::Pixel::NORMAL);
 				}
@@ -235,8 +250,8 @@ public:
 
 		olc::vf2d mouse = {(float) GetMouseX(), (float) GetMouseY()};
 
-		auto overlap = [] (olc::vf2d r1, olc::vf2d r2, int size) {
-			return r2.x <= r1.x && r1.x <= r2.x + size && r2.y <= r1.y && r1.y <= r2.y + size;
+		auto overlap = [](olc::vf2d p1, olc::vf2d p2, int size) {
+			return p2.x <= p1.x && p1.x <= p2.x + size && p2.y <= p1.y && p1.y <= p2.y + size;
 		};
 
 		bool tl = overlap(mouse, top_left, size / 2);
@@ -247,7 +262,7 @@ public:
 		olc::vf2d sizevf = scale * pieceSize;
 
 		olc::Pixel normal = {255, 255, 255, 255};
-		olc::Pixel tint = {255, 255, 255, 70};
+		olc::Pixel tint = {255, 255, 255, 100};
 
 		DrawDecal(top_left, pieces[chessboard->active_color][QUEEN], scale, tl ? tint : normal);
 		DrawDecal(top_right, pieces[chessboard->active_color][ROOK], scale, tr ? tint : normal);

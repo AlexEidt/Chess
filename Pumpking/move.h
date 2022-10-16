@@ -376,8 +376,8 @@ const Bitboard bishop_moves_inc[65][4] = { // South East, South West, North West
 // 5. King Destination Kingside (White: G1, Black: G8)
 // 6. King Destination Queenside (White: C1, Black: C8)
 const Bitboard castling[2][6] = {
-    {0x6ULL, 0x30ULL, 0x70ULL, 1ULL << E1, 1ULL << G1, 1ULL << C1}, // White
-    {0x600000000000000ULL, 0x3000000000000000ULL, 0x7000000000000000ULL, 1ULL << E8, 1ULL << G8, 1ULL << C8} // Black
+    {0x6ULL, 0x30ULL, 0x70ULL, E1, G1, C1}, // White
+    {0x600000000000000ULL, 0x3000000000000000ULL, 0x7000000000000000ULL, E8, G8, C8} // Black
 };
 
 int extract_moves_pawns(Bitboard board, int8_t offset, Move* moves, int start, Flag flag);
@@ -409,5 +409,7 @@ int gen_legal_moves(Board* board, Move* moves);
 
 void make_move(Board* board, Move* move);
 void undo_move(Board* board, Move* move);
+
+void make_move_cheap(Board* board, Move* move);
 
 #endif

@@ -68,7 +68,7 @@ void switch_ply(Board* board) {
 }
 
 void clear(Board* board) {
-    memset(board, 0, sizeof(board));
+    memset(board, 0, sizeof(Board));
 }
 
 Piece get_piece(Board* board, uint8_t index) {
@@ -104,29 +104,29 @@ void remove_piece(Board* board, Piece piece, Piece color, uint8_t index) {
 }
 
 void add_castle_kingside(Board* board, Piece color) {
-    board->castle[color >> 2] |= 0b01;
+    board->castle[color & 1] |= 0b01;
 }
 
 void add_castle_queenside(Board* board, Piece color) {
-    board->castle[color >> 2] |= 0b10;
+    board->castle[color & 1] |= 0b10;
 }
 
 void remove_castle_kingside(Board* board, Piece color) {
-    board->castle[color >> 2] &= 0b10;
+    board->castle[color & 1] &= 0b10;
 }
 
 void remove_castle_queenside(Board* board, Piece color) {
-    board->castle[color >> 2] &= 0b01;
+    board->castle[color & 1] &= 0b01;
 }
 
 bool can_castle_kingside(Board* board, Piece color) {
-    return (board->castle[color >> 2] & 0b01) != 0;
+    return (board->castle[color & 1] & 0b01) != 0;
 }
 
 bool can_castle_queenside(Board* board, Piece color) {
-    return (board->castle[color >> 2] & 0b10) != 0;
+    return (board->castle[color & 1] & 0b10) != 0;
 }
 
 bool can_castle(Board* board, Piece color) {
-    return board->castle[color >> 2] != 0;
+    return board->castle[color & 1] != 0;
 }

@@ -191,8 +191,8 @@ int gen_castle_moves(Board* board, Move* moves, int index) {
     switch_ply(board);
 
     Bitboard king = get_pieces(board, KING, board->active_color);
-    if (king & attacks == 0) { // If king is not in check.
-        int index = board->active_color >> 2; // Maps White to 0, Black to 1.
+    if ((king & attacks) == 0) { // If king is not in check.
+        uint8_t index = board->active_color & 1; // Maps White to 0, Black to 1.
         Bitboard kingside = castling[index][KINGSIDE_PATH];
         Bitboard queenside = castling[index][QUEENSIDE_PATH];
         Bitboard queenside_path_rook = castling[index][QUEENSIDE_PATH_TO_ROOK];
@@ -204,13 +204,13 @@ int gen_castle_moves(Board* board, Move* moves, int index) {
         Bitboard enemies = get_pieces_color(board, OPPOSITE(board->active_color));
 
         if (can_castle_kingside(board, board->active_color)) {
-            if ((kingside & attacks & us & enemies) == 0) {
+            if ((kingside & (attacks | us | enemies)) == 0) {
                 Move* move = &moves[index++];
                 move->to = king_dst_kingside; move->from = king_pos; move->flags = CASTLE_KINGSIDE;
             }
         }
         if (can_castle_queenside(board, board->active_color)) {
-            if ((queenside & attacks & us & enemies) == 0 && (queenside_path_rook & us & enemies) == 0) {
+            if ((queenside & (attacks | us | enemies)) == 0 && (queenside_path_rook & (us | enemies)) == 0) {
                 Move* move = &moves[index++];
                 move->to = king_dst_queenside; move->from = king_pos; move->flags = CASTLE_QUEENSIDE;
             }
@@ -477,7 +477,6 @@ int gen_legal_moves(Board* board, Move* moves) {
     index = gen_pawn_promotions_captures(board, moves, index);
     index = gen_pawn_en_passant(board, moves, index);
 
-
     index = gen_knight_moves(board, moves, index);
     index = gen_king_moves(board, moves, index);
     index = gen_rook_moves(board, moves, index);
@@ -488,10 +487,12 @@ int gen_legal_moves(Board* board, Move* moves) {
 
     Piece active = board->active_color;
 
+    Board copy = *board;
+
     int size = 0;
     for (int i = 0; i < index; i++) {
         Move* move = &moves[i];
-        make_move(board, move);
+        make_move_cheap(board, move);
         Bitboard king = get_pieces(board, KING, active);
         switch_ply(board);
         Bitboard attacks = gen_attacks(board);
@@ -499,8 +500,7 @@ int gen_legal_moves(Board* board, Move* moves) {
         if ((king & attacks) == 0) {
             moves[size++] = *move;
         }
-        switch_ply(board);
-        undo_move(board, move);
+        *board = copy; // Undo Move.
     }
 
     return size;
@@ -554,7 +554,6 @@ void make_move(Board* board, Move* move) {
             }
         }
 
-        // board->positions[src] == PAWN && get_en_passant(board, OPPOSITE(board->active_color)) == dst
         if (IS_EN_PASSANT(flags)) {
             int8_t offset = WHITE_TO_MOVE(board) ? -8 : 8;
             remove_piece(board, PAWN, inactive, dst + offset);
@@ -667,6 +666,66 @@ void undo_move(Board* board, Move* move) {
         } else {
             remove_piece(board, ROOK, inactive, D8);
             add_piece(board, ROOK, inactive, A8);
+        }
+    }
+}
+
+void make_move_cheap(Board* board, Move* move) {
+    uint8_t src = move->from;
+    uint8_t dst = move->to;
+
+    Piece src_piece = board->positions[src];
+    Piece dst_piece = board->positions[dst];
+
+    Flag flags = move->flags;
+
+    Piece active = board->active_color;
+    Piece inactive = OPPOSITE(active);
+
+    if (IS_CAPTURE(flags)) {
+        if (IS_EN_PASSANT(flags)) {
+            int8_t offset = WHITE_TO_MOVE(board) ? -8 : 8;
+            remove_piece(board, PAWN, inactive, dst + offset);
+            // Remove the en passant square once the en passant capture happens.
+            board->en_passant = 0;
+        } else {
+            remove_piece(board, dst_piece, inactive, dst);
+        }
+    }
+
+    remove_piece(board, src_piece, active, src);
+
+    if (IS_PROMOTION(flags)) {
+        // If the flag is a promotion, the top 3 bits contain the piece promoted.
+        add_piece(board, PROMOTED_PIECE(flags), active, dst);
+    } else {
+        add_piece(board, src_piece, active, dst);
+    }
+
+    if (IS_DOUBLE_PUSH(flags)) {
+        int8_t offset = WHITE_TO_MOVE(board) ? -8 : 8;
+        board->en_passant = dst + offset;
+    } else {
+        // If the right to capture en passant is not exercised immediately, it is subsequently lost.
+        board->en_passant = 0;
+    }
+
+    // If the move was a castle, move the rook to the corresponding position.
+    if (IS_CASTLE_KINGSIDE(flags)) {
+        if (WHITE_TO_MOVE(board)) {
+            remove_piece(board, ROOK, active, H1);
+            add_piece(board, ROOK, active, F1);
+        } else {
+            remove_piece(board, ROOK, active, H8);
+            add_piece(board, ROOK, active, F8);
+        }
+    } else if (IS_CASTLE_QUEENSIDE(flags)) {
+        if (WHITE_TO_MOVE(board)) {
+            remove_piece(board, ROOK, active, A1);
+            add_piece(board, ROOK, active, D1);
+        } else {
+            remove_piece(board, ROOK, active, A8);
+            add_piece(board, ROOK, active, D8);
         }
     }
 }
