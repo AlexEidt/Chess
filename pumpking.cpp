@@ -191,7 +191,7 @@ public:
 
 				if (selected != nullptr) {
 					selectedDestination = index;
-					MakeMove(selected, index);
+					MakeMove(selected);
 				} else {
 					selectedSource = index;
 					ShowPossibleMoves(index);
@@ -235,9 +235,9 @@ public:
 	}
 
 	// Make a move to the selected destination.
-	void MakeMove(Move* move, int destination) {
+	void MakeMove(Move* move) {
 		// Highlight the source and destination squares of the most recently made move.
-		olc::vi2d rfs = Itof(selectedSource), rfd = Itof(destination);
+		olc::vi2d rfs = Itof(selectedSource), rfd = Itof(selectedDestination);
 		FillRect({unit * rfs.x + unit, unit * rfs.y + unit}, {unit, unit}, highlight);
 		FillRect({unit * rfd.x + unit, unit * rfd.y + unit}, {unit, unit}, highlight);
 
@@ -254,6 +254,7 @@ public:
 
 			make_move(chessboard, move);
 			switch_ply(chessboard);
+
 			GenerateMoves();
 		}
 	}
@@ -288,15 +289,15 @@ public:
 		int cx = screenWidth / 2;
 		int cy = screenHeight / 2;
 		int trim = unit / 5;
-		int size = 4 * unit - 2 * trim;
-		FillRect({cx - size / 2 - trim, cy - size / 2 - trim}, {size + 2 * trim, size + 2 * trim}, {0, 0, 0});
-		FillRect({cx - size / 2, cy - size / 2}, {size, size}, {245, 245, 245});
+		int size = (4 * unit - 2 * trim) / 2;
+		FillRect({cx - size - trim, cy - size - trim}, {size * 2 + 2 * trim, size * 2 + 2 * trim}, {0, 0, 0});
+		FillRect({cx - size, cy - size}, {size * 2, size * 2}, {245, 245, 245});
 
-		olc::vf2d scale = {(float) size / 2 / pieceSize, (float) size / 2 / pieceSize};
+		olc::vf2d scale = {(float) size / pieceSize, (float) size / pieceSize};
 
-		olc::vf2d top_left = {(float) cx - size / 2, (float) cy - size / 2};
-		olc::vf2d top_right = {(float) cx, (float) cy - size / 2};
-		olc::vf2d bottom_left = {(float) cx - size / 2, (float) cy};
+		olc::vf2d top_left = {(float) cx - size, (float) cy - size};
+		olc::vf2d top_right = {(float) cx, (float) cy - size};
+		olc::vf2d bottom_left = {(float) cx - size, (float) cy};
 		olc::vf2d bottom_right = {(float) cx, (float) cy};
 
 		auto overlap = [](olc::vf2d p1, olc::vf2d p2, int size) {
@@ -305,10 +306,10 @@ public:
 		
 		olc::vf2d mouse = {(float) GetMouseX(), (float) GetMouseY()};
 
-		bool tl = overlap(mouse, top_left, size / 2);
-		bool tr = overlap(mouse, top_right, size / 2);
-		bool bl = overlap(mouse, bottom_left, size / 2);
-		bool br = overlap(mouse, bottom_right, size / 2);
+		bool tl = overlap(mouse, top_left, size);
+		bool tr = overlap(mouse, top_right, size);
+		bool bl = overlap(mouse, bottom_left, size);
+		bool br = overlap(mouse, bottom_right, size);
 
 		olc::vf2d sizevf = scale * pieceSize;
 
@@ -334,12 +335,10 @@ public:
 		int trim = unit / 4;
 		FillRect({unit - trim, unit - trim}, {8 * unit + 2 * trim, 8 * unit + 2 * trim}, {0, 0, 0});
 
-		// Draw Chess Board.
 		for (int file = 0; file < 8; file++) {
 			for (int rank = 0; rank < 8; rank++) {
-				bool color = (file + rank) % 2 != 0;
 				olc::vf2d pos = {(float) rank * unit + unit, (float) file * unit + unit};
-				FillRect(pos, {unit, unit}, color ? dark : light);
+				FillRect(pos, {unit, unit}, (file + rank) % 2 != 0 ? dark : light);
 			}
 		}
 	}
