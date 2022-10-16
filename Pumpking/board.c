@@ -54,6 +54,7 @@ void board_from_fen(Board* board, const char* fen) {
         int rank = fen[i++] - '1';
         board->en_passant = rank * 8 + file;
     } else {
+        board->en_passant = 0;
         i++;
     }
 }

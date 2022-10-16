@@ -35,6 +35,7 @@ private:
 	std::vector<Move*> possible[64];
 	// Previously selected square.
 	int selected;
+	int selectedDestination;
 
 	// Moves the player can make.
 	Move moves[256];
@@ -44,7 +45,10 @@ private:
 	// Size of a chess piece sprite in pixels.
 	float pieceSize;
 	// Colors for the chess board.
-	olc::Pixel light, dark, background;
+	olc::Pixel light, dark, background, highlight;
+
+	bool isPromotion;
+	Piece promoted;
 
 public:
 	bool OnUserCreate() override {
@@ -93,8 +97,6 @@ public:
 			}
 
 			pieces[color][type] = new olc::Decal(sprite);
-
-			selected = -1;
 		}
 
 		srand(std::time(0));
@@ -107,21 +109,49 @@ public:
 		light = {235, 236, 208};
 		dark = {119, 149, 86};
 		background = {49, 46, 43};
+		highlight = {246, 246, 105};
+
+		isPromotion = false;
+		promoted = 0;
+		
+		selected = -1;
+		selectedDestination = -1;
 
 		chessboard = new Board();
 		board_from_fen(chessboard, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
 		DrawBoard();
+		GenerateMoves();
 
-		makeMoves();
 		return true;
 	}
 
 	bool OnUserUpdate(float fElapsedTime) override {
 		DrawPieces();
-		olc::vf2d mouse = { (float) GetMouseX(), (float) GetMouseY() };
 
-		if (GetMouse(0).bPressed) {
+		if (isPromotion) {
+			DrawPromotion();
+			if (promoted != 0) {
+				isPromotion = false;
+				for (const auto& move : possible[selected]) {
+					if (move->to == selectedDestination && IS_PROMOTION(move->flags) && PROMOTED_PIECE(move->flags) == promoted) {
+						if (IS_CAPTURE(move->flags)) {
+							olc::SOUND::PlaySample(audio[CAPTURE_AUDIO]);
+						} else {
+							olc::SOUND::PlaySample(audio[MOVE_AUDIO]);
+						}
+						make_move(chessboard, move);
+						switch_ply(chessboard);
+						GenerateMoves();
+						DrawBoard();
+						DrawPieces();
+						break;
+					}
+				}
+				promoted = 0;
+			}
+		} else if (GetMouse(0).bPressed) {
+			olc::vf2d mouse = { (float) GetMouseX(), (float) GetMouseY() };
 			int file = (mouse.x - unit) / unit;
 			file = 7 - file;
 			int rank = (mouse.y - unit) / unit;
@@ -143,9 +173,10 @@ public:
 					}
 				}
 
-				selected = index;
-
 				if (to_make != nullptr) {
+					selectedDestination = index;
+					FillRect({unit * (7 - selected % 8) + unit, unit * (7 - selected / 8) + unit}, {unit, unit}, highlight);
+					FillRect({unit * (7 - index % 8) + unit, unit * (7 - index / 8) + unit}, {unit, unit}, highlight);
 					if (IS_CAPTURE(to_make->flags)) {
 						olc::SOUND::PlaySample(audio[CAPTURE_AUDIO]);
 					} else {
@@ -153,25 +184,29 @@ public:
 					}
 
 					if (IS_PROMOTION(to_make->flags)) {
-						
+						isPromotion = true;
+					} else {
+						make_move(chessboard, to_make);
+						switch_ply(chessboard);
+						GenerateMoves();
 					}
-					make_move(chessboard, to_make);
-					switch_ply(chessboard);
-					makeMoves();
 				} else {
+					selected = index;
+					SetPixelMode(olc::Pixel::ALPHA);
 					for (const auto& move : possible[index]) {
 						int r = 7 - move->to % 8;
 						int f = 7 - move->to / 8;
-						FillCircle({r * unit + unit * 3 / 2, f * unit + unit * 3 / 2}, unit / 4, {0, 0, 0, 100});
+						FillCircle({r * unit + unit * 3 / 2, f * unit + unit * 3 / 2}, unit / 5, {0, 0, 0, 100});
 					}
+					SetPixelMode(olc::Pixel::NORMAL);
 				}
 			}
 		}
 
-		if (GetKey(olc::Key::Q).bPressed) olc::SOUND::PlaySample(audio[CAPTURE_AUDIO]);
-		if (GetKey(olc::Key::W).bPressed) olc::SOUND::PlaySample(audio[END_AUDIO]);
-		if (GetKey(olc::Key::E).bPressed) olc::SOUND::PlaySample(audio[MOVE_AUDIO]);
-		if (GetKey(olc::Key::R).bPressed) olc::SOUND::PlaySample(audio[WARNING_AUDIO]);
+		// if (GetKey(olc::Key::Q).bPressed) olc::SOUND::PlaySample(audio[CAPTURE_AUDIO]);
+		// if (GetKey(olc::Key::W).bPressed) olc::SOUND::PlaySample(audio[END_AUDIO]);
+		// if (GetKey(olc::Key::E).bPressed) olc::SOUND::PlaySample(audio[MOVE_AUDIO]);
+		// if (GetKey(olc::Key::R).bPressed) olc::SOUND::PlaySample(audio[WARNING_AUDIO]);
 
 		return true;
 	}
@@ -180,6 +215,51 @@ public:
 		olc::SOUND::DestroyAudio();
 
 		return true;
+	}
+
+	// Draw Screen for Pawn Promotions allowing user to selected promoted piece.
+	void DrawPromotion() {
+		int cx = screenWidth / 2;
+		int cy = screenHeight / 2;
+		int trim = unit / 5;
+		int size = 4 * unit - 2 * trim;
+		FillRect({cx - size / 2 - trim, cy - size / 2 - trim}, {size + 2 * trim, size + 2 * trim}, {0, 0, 0});
+		FillRect({cx - size / 2, cy - size / 2}, {size, size}, {245, 245, 245});
+
+		olc::vf2d scale = {(float) size / 2 / pieceSize, (float) size / 2 / pieceSize};
+
+		olc::vf2d top_left = {(float) cx - size / 2, (float) cy - size / 2};
+		olc::vf2d top_right = {(float) cx, (float) cy - size / 2};
+		olc::vf2d bottom_left = {(float) cx - size / 2, (float) cy};
+		olc::vf2d bottom_right = {(float) cx, (float) cy};
+
+		olc::vf2d mouse = {(float) GetMouseX(), (float) GetMouseY()};
+
+		auto overlap = [] (olc::vf2d r1, olc::vf2d r2, int size) {
+			return r2.x <= r1.x && r1.x <= r2.x + size && r2.y <= r1.y && r1.y <= r2.y + size;
+		};
+
+		bool tl = overlap(mouse, top_left, size / 2);
+		bool tr = overlap(mouse, top_right, size / 2);
+		bool bl = overlap(mouse, bottom_left, size / 2);
+		bool br = overlap(mouse, bottom_right, size / 2);
+
+		olc::vf2d sizevf = scale * pieceSize;
+
+		olc::Pixel normal = {255, 255, 255, 255};
+		olc::Pixel tint = {255, 255, 255, 70};
+
+		DrawDecal(top_left, pieces[chessboard->active_color][QUEEN], scale, tl ? tint : normal);
+		DrawDecal(top_right, pieces[chessboard->active_color][ROOK], scale, tr ? tint : normal);
+		DrawDecal(bottom_left, pieces[chessboard->active_color][BISHOP], scale, bl ? tint : normal);
+		DrawDecal(bottom_right, pieces[chessboard->active_color][KNIGHT], scale, br ? tint : normal);
+
+		if (GetMouse(0).bPressed) {
+			if (tl) promoted = QUEEN;
+			else if (tr) promoted = ROOK;
+			else if (bl) promoted = BISHOP;
+			else if (br) promoted = KNIGHT;
+		}
 	}
 
 	// Draws the chess board.
@@ -202,20 +282,37 @@ public:
 	// Draw the pieces on the board.
 	void DrawPieces() {
 		olc::vf2d scale = {(float) unit / pieceSize, (float) unit / pieceSize};
-		for (int file = 0; file < 8; file++) {
-			for (int rank = 0; rank < 8; rank++) {
-				int index = file * 8 + rank;
-				Piece piece = get_piece(chessboard, index);
-				if (piece != 0) {
-					Piece color = get_color(chessboard, index);
-					olc::vf2d pos = {(float) (7 - rank) * unit + unit, (float) (7 - file) * unit + unit};
-					DrawDecal(pos, pieces[color][piece], scale);
+
+		if (isPromotion) {
+			// If the promotion screen is up, then do not draw pieces on ranks 3-6 and files c-f.
+			for (int file = 0; file < 8; file++) {
+				for (int rank = 0; rank < 8; rank++) {
+					if (file >= 2 && file <= 5 && rank >= 2 && rank <= 5) continue;
+					int index = file * 8 + rank;
+					Piece piece = get_piece(chessboard, index);
+					if (piece != 0) {
+						Piece color = get_color(chessboard, index);
+						olc::vf2d pos = {(float) (7 - rank) * unit + unit, (float) (7 - file) * unit + unit};
+						DrawDecal(pos, pieces[color][piece], scale);
+					}
+				}
+			}
+		} else {
+			for (int file = 0; file < 8; file++) {
+				for (int rank = 0; rank < 8; rank++) {
+					int index = file * 8 + rank;
+					Piece piece = get_piece(chessboard, index);
+					if (piece != 0) {
+						Piece color = get_color(chessboard, index);
+						olc::vf2d pos = {(float) (7 - rank) * unit + unit, (float) (7 - file) * unit + unit};
+						DrawDecal(pos, pieces[color][piece], scale);
+					}
 				}
 			}
 		}
 	}
 
-	void makeMoves() {
+	void GenerateMoves() {
 		for (int i = 0; i < 64; i++) {
 			possible[i].clear();
 		}
