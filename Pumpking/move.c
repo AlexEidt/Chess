@@ -2,8 +2,8 @@
 
 int extract_moves_pawns(Bitboard board, int8_t offset, Move* moves, int start, Flag flag) {
     while (board != 0) {
-        uint8_t pos = LSB(board);
-        board = CLEAR_BIT(board, pos);
+        int pos = LSB(board);
+        CLEAR_BIT(board, pos);
         Move* move = &moves[start++];
         move->to = pos; move->from = pos - offset; move->flags = flag;
     }
@@ -13,8 +13,8 @@ int extract_moves_pawns(Bitboard board, int8_t offset, Move* moves, int start, F
 
 int extract_moves_pawns_promotions(Bitboard board, int8_t offset, Move* moves, int start, Flag flag) {
     while (board != 0) {
-        uint8_t pos = LSB(board);
-        board = CLEAR_BIT(board, pos);
+        int pos = LSB(board);
+        CLEAR_BIT(board, pos);
         Move* move;
         move = &moves[start++];
         move->to = pos; move->from = pos - offset; move->flags = ADD_PROMOTED_PIECE(QUEEN) | flag;
@@ -135,8 +135,8 @@ int gen_pawn_en_passant(Board* board, Move* moves, int index) {
 
 int extract_moves(Bitboard board, int8_t init, Move* moves, int start, Flag flag) {
     while (board != 0) {
-        uint8_t pos = LSB(board);
-        board = CLEAR_BIT(board, pos);
+        int pos = LSB(board);
+        CLEAR_BIT(board, pos);
         Move* move = &moves[start++];
         move->to = pos; move->from = init; move->flags = flag;
     }
@@ -150,8 +150,8 @@ int gen_knight_moves(Board* board, Move* moves, int index) {
     Bitboard enemies = get_pieces_color(board, OPPOSITE(board->active_color));
 
     while (knights != 0) {
-        uint8_t pos = LSB(knights);
-        knights = CLEAR_BIT(knights, pos);
+        int pos = LSB(knights);
+        CLEAR_BIT(knights, pos);
         index = extract_moves(knight_moves[pos] & empty, pos, moves, index, QUIET);
         index = extract_moves(knight_moves[pos] & enemies, pos, moves, index, CAPTURE);
     }
@@ -164,7 +164,7 @@ int gen_king_moves(Board* board, Move* moves, int index) {
     Bitboard empty = ~get_all_pieces(board);
     Bitboard enemies = get_pieces_color(board, OPPOSITE(board->active_color));
 
-    uint8_t pos = LSB(king);
+    int pos = LSB(king);
     index = extract_moves(king_moves[pos] & empty, pos, moves, index, QUIET);
     index = extract_moves(king_moves[pos] & enemies, pos, moves, index, CAPTURE);
 
@@ -224,42 +224,51 @@ int gen_cardinal_moves(Board* board, Move* moves, int index, Piece piece) {
     Piece color = board->active_color;
     Bitboard cardinal = get_pieces(board, piece, color);
     Bitboard us = get_pieces_color(board, color);
-    Bitboard enemies = get_pieces_color(board, OPPOSITE(board->active_color));
+    Bitboard enemies = get_pieces_color(board, OPPOSITE(color));
+    Bitboard empty = ~get_all_pieces(board);
 
     while (cardinal != 0) {
-        uint8_t pos = LSB(cardinal);
-        cardinal = CLEAR_BIT(cardinal, pos);
+        int pos = LSB(cardinal);
+        CLEAR_BIT(cardinal, pos);
 
         int ai, qi;
-        Bitboard ray;
+        Bitboard ray, ray_us, ray_enemies;
     
         ray = rook_moves[pos][NORTH];
-        ai = LSB(ray & enemies);
-        qi = LSB(ray & us);
-        ray ^= rook_moves[ai >= qi ? ai : qi - 8][NORTH];
+        ray_enemies = ray & enemies;
+        ray_us = ray & us;
+        ai = ray_enemies != 0 ? LSB(ray_enemies) : 64;
+        qi = ray_us != 0 ? LSB(ray_us) : 64;
+        ray ^= rook_moves[ai][NORTH] | rook_moves_inc[qi][NORTH];
         index = extract_moves(ray & enemies, pos, moves, index, CAPTURE);
-        index = extract_moves(ray & ~enemies, pos, moves, index, QUIET);
+        index = extract_moves(ray & empty, pos, moves, index, QUIET);
 
         ray = rook_moves[pos][EAST];
-        ai = MSB(ray & enemies);
-        qi = MSB(ray & us);
-        ray ^= rook_moves[ai >= qi ? ai : qi + 1][EAST];
+        ray_enemies = ray & enemies;
+        ray_us = ray & us;
+        ai = ray_enemies != 0 ? MSB(ray_enemies) : 64;
+        qi = ray_us != 0 ? MSB(ray_us) : 64;
+        ray ^= rook_moves[ai][EAST] | rook_moves_inc[qi][EAST];
         index = extract_moves(ray & enemies, pos, moves, index, CAPTURE);
-        index = extract_moves(ray & ~enemies, pos, moves, index, QUIET);
+        index = extract_moves(ray & empty, pos, moves, index, QUIET);
 
         ray = rook_moves[pos][SOUTH];
-        ai = MSB(ray & enemies);
-        qi = MSB(ray & us);
-        ray ^= rook_moves[ai <= qi ? ai : qi + 8][SOUTH];
+        ray_enemies = ray & enemies;
+        ray_us = ray & us;
+        ai = ray_enemies != 0 ? MSB(ray_enemies) : 64;
+        qi = ray_us != 0 ? MSB(ray_us) : 64;
+        ray ^= rook_moves[ai][SOUTH] | rook_moves_inc[qi][SOUTH];
         index = extract_moves(ray & enemies, pos, moves, index, CAPTURE);
-        index = extract_moves(ray & ~enemies, pos, moves, index, QUIET);
+        index = extract_moves(ray & empty, pos, moves, index, QUIET);
 
         ray = rook_moves[pos][WEST];
-        ai = LSB(ray & enemies);
-        qi = LSB(ray & us);
-        ray ^= rook_moves[ai <= qi ? ai : qi - 1][WEST];
+        ray_enemies = ray & enemies;
+        ray_us = ray & us;
+        ai = ray_enemies != 0 ? LSB(ray_enemies) : 64;
+        qi = ray_us != 0 ? LSB(ray_us) : 64;
+        ray ^= rook_moves[ai][WEST] | rook_moves_inc[qi][WEST];
         index = extract_moves(ray & enemies, pos, moves, index, CAPTURE);
-        index = extract_moves(ray & ~enemies, pos, moves, index, QUIET);
+        index = extract_moves(ray & empty, pos, moves, index, QUIET);
     }
 
     return index;
@@ -269,42 +278,51 @@ int gen_intercardinal_moves(Board* board, Move* moves, int index, Piece piece) {
     Piece color = board->active_color;
     Bitboard intercardinal = get_pieces(board, piece, color);
     Bitboard us = get_pieces_color(board, color);
-    Bitboard enemies = get_pieces_color(board, OPPOSITE(board->active_color));
+    Bitboard enemies = get_pieces_color(board, OPPOSITE(color));
+    Bitboard empty = ~get_all_pieces(board);
 
     while (intercardinal != 0) {
-        uint8_t pos = LSB(intercardinal);
-        intercardinal = CLEAR_BIT(intercardinal, pos);
+        int pos = LSB(intercardinal);
+        CLEAR_BIT(intercardinal, pos);
 
         int ai, qi;
-        Bitboard ray;
+        Bitboard ray, ray_enemies, ray_us;
 
         ray = bishop_moves[pos][SOUTHEAST];
-        ai = MSB(ray & enemies);
-        qi = MSB(ray & us);
-        ray ^= bishop_moves[ai >= qi ? ai : qi + 9][SOUTHEAST];
+        ray_enemies = ray & enemies;
+        ray_us = ray & us;
+        ai = ray_enemies != 0 ? MSB(ray_enemies) : 64;
+        qi = ray_us != 0 ? MSB(ray_us) : 64;
+        ray ^= bishop_moves[ai][SOUTHEAST] | bishop_moves_inc[qi][SOUTHEAST];
         index = extract_moves(ray & enemies, pos, moves, index, CAPTURE);
-        index = extract_moves(ray & ~enemies, pos, moves, index, QUIET);
+        index = extract_moves(ray & empty, pos, moves, index, QUIET);
 
         ray = bishop_moves[pos][SOUTHWEST];
-        ai = MSB(ray & enemies);
-        qi = MSB(ray & us);
-        ray ^= bishop_moves[ai >= qi ? ai : qi + 7][SOUTHWEST];
+        ray_enemies = ray & enemies;
+        ray_us = ray & us;
+        ai = ray_enemies != 0 ? MSB(ray_enemies) : 64;
+        qi = ray_us != 0 ? MSB(ray_us) : 64;
+        ray ^= bishop_moves[ai][SOUTHWEST] | bishop_moves_inc[qi][SOUTHWEST];
         index = extract_moves(ray & enemies, pos, moves, index, CAPTURE);
-        index = extract_moves(ray & ~enemies, pos, moves, index, QUIET);
+        index = extract_moves(ray & empty, pos, moves, index, QUIET);
 
         ray = bishop_moves[pos][NORTHEAST];
-        ai = LSB(ray & enemies);
-        qi = LSB(ray & us);
-        ray ^= bishop_moves[ai <= qi ? ai : qi - 7][NORTHEAST];
+        ray_enemies = ray & enemies;
+        ray_us = ray & us;
+        ai = ray_enemies != 0 ? LSB(ray_enemies) : 64;
+        qi = ray_us != 0 ? LSB(ray_us) : 64;
+        ray ^= bishop_moves[ai][NORTHEAST] | bishop_moves_inc[qi][NORTHEAST];
         index = extract_moves(ray & enemies, pos, moves, index, CAPTURE);
-        index = extract_moves(ray & ~enemies, pos, moves, index, QUIET);
+        index = extract_moves(ray & empty, pos, moves, index, QUIET);
 
         ray = bishop_moves[pos][NORTHWEST];
-        ai = LSB(ray & enemies);
-        qi = LSB(ray & us);
-        ray ^= bishop_moves[ai <= qi ? ai : qi - 9][NORTHWEST];
+        ray_enemies = ray & enemies;
+        ray_us = ray & us;
+        ai = ray_enemies != 0 ? LSB(ray_enemies) : 64;
+        qi = ray_us != 0 ? LSB(ray_us) : 64;
+        ray ^= ray & (bishop_moves[ai][NORTHWEST] | bishop_moves_inc[qi][NORTHWEST]);
         index = extract_moves(ray & enemies, pos, moves, index, CAPTURE);
-        index = extract_moves(ray & ~enemies, pos, moves, index, QUIET);
+        index = extract_moves(ray & empty, pos, moves, index, QUIET);
     }
 
     return index;
@@ -316,37 +334,45 @@ Bitboard gen_cardinal_attacks(Board* board, Piece piece) {
     Piece color = board->active_color;
     Bitboard cardinal = get_pieces(board, piece, color);
     Bitboard us = get_pieces_color(board, color);
-    Bitboard enemies = get_pieces_color(board, OPPOSITE(board->active_color));
+    Bitboard enemies = get_pieces_color(board, OPPOSITE(color));
 
     while (cardinal != 0) {
-        uint8_t pos = LSB(cardinal);
-        cardinal = CLEAR_BIT(cardinal, pos);
+        int pos = LSB(cardinal);
+        CLEAR_BIT(cardinal, pos);
 
         int ai, qi;
-        Bitboard ray;
+        Bitboard ray, ray_enemies, ray_us;
     
         ray = rook_moves[pos][NORTH];
-        ai = LSB(ray & enemies);
-        qi = LSB(ray & us);
-        ray ^= rook_moves[ai >= qi ? ai : qi - 8][NORTH];
+        ray_enemies = ray & enemies;
+        ray_us = ray & us;
+        ai = ray_enemies != 0 ? LSB(ray_enemies) : 64;
+        qi = ray_us != 0 ? LSB(ray_us) : 64;
+        ray ^= rook_moves[ai][NORTH] | rook_moves_inc[qi][NORTH];
         attacks |= ray;
 
         ray = rook_moves[pos][EAST];
-        ai = MSB(ray & enemies);
-        qi = MSB(ray & us);
-        ray ^= rook_moves[ai >= qi ? ai : qi + 1][EAST];
+        ray_enemies = ray & enemies;
+        ray_us = ray & us;
+        ai = ray_enemies != 0 ? MSB(ray_enemies) : 64;
+        qi = ray_us != 0 ? MSB(ray_us) : 64;
+        ray ^= rook_moves[ai][EAST] | rook_moves_inc[qi][EAST];
         attacks |= ray;
 
         ray = rook_moves[pos][SOUTH];
-        ai = MSB(ray & enemies);
-        qi = MSB(ray & us);
-        ray ^= rook_moves[ai <= qi ? ai : qi + 8][SOUTH];
+        ray_enemies = ray & enemies;
+        ray_us = ray & us;
+        ai = ray_enemies != 0 ? MSB(ray_enemies) : 64;
+        qi = ray_us != 0 ? MSB(ray_us) : 64;
+        ray ^= rook_moves[ai][SOUTH] | rook_moves_inc[qi][SOUTH];
         attacks |= ray;
 
         ray = rook_moves[pos][WEST];
-        ai = LSB(ray & enemies);
-        qi = LSB(ray & us);
-        ray ^= rook_moves[ai <= qi ? ai : qi - 1][WEST];
+        ray_enemies = ray & enemies;
+        ray_us = ray & us;
+        ai = ray_enemies != 0 ? LSB(ray_enemies) : 64;
+        qi = ray_us != 0 ? LSB(ray_us) : 64;
+        ray ^= rook_moves[ai][WEST] | rook_moves_inc[qi][WEST];
         attacks |= ray;
     }
 
@@ -359,37 +385,45 @@ Bitboard gen_intercardinal_attacks(Board* board, Piece piece) {
     Piece color = board->active_color;
     Bitboard intercardinal = get_pieces(board, piece, color);
     Bitboard us = get_pieces_color(board, color);
-    Bitboard enemies = get_pieces_color(board, OPPOSITE(board->active_color));
+    Bitboard enemies = get_pieces_color(board, OPPOSITE(color));
 
     while (intercardinal != 0) {
-        uint8_t pos = LSB(intercardinal);
-        intercardinal = CLEAR_BIT(intercardinal, pos);
+        int pos = LSB(intercardinal);
+        CLEAR_BIT(intercardinal, pos);
 
         int ai, qi;
-        Bitboard ray;
+        Bitboard ray, ray_enemies, ray_us;
     
         ray = bishop_moves[pos][SOUTHEAST];
-        ai = MSB(ray & enemies);
-        qi = MSB(ray & us);
-        ray ^= bishop_moves[ai >= qi ? ai : qi + 9][SOUTHEAST];
+        ray_enemies = ray & enemies;
+        ray_us = ray & us;
+        ai = ray_enemies != 0 ? MSB(ray_enemies) : 64;
+        qi = ray_us != 0 ? MSB(ray_us) : 64;
+        ray ^= bishop_moves[ai][SOUTHEAST] | bishop_moves_inc[qi][SOUTHEAST];
         attacks |= ray;
 
         ray = bishop_moves[pos][SOUTHWEST];
-        ai = MSB(ray & enemies);
-        qi = MSB(ray & us);
-        ray ^= bishop_moves[ai >= qi ? ai : qi + 7][SOUTHWEST];
+        ray_enemies = ray & enemies;
+        ray_us = ray & us;
+        ai = ray_enemies != 0 ? MSB(ray_enemies) : 64;
+        qi = ray_us != 0 ? MSB(ray_us) : 64;
+        ray ^= bishop_moves[ai][SOUTHWEST] | bishop_moves_inc[qi][SOUTHWEST];
         attacks |= ray;
 
         ray = bishop_moves[pos][NORTHEAST];
-        ai = LSB(ray & enemies);
-        qi = LSB(ray & us);
-        ray ^= bishop_moves[ai <= qi ? ai : qi - 7][NORTHEAST];
+        ray_enemies = ray & enemies;
+        ray_us = ray & us;
+        ai = ray_enemies != 0 ? LSB(ray_enemies) : 64;
+        qi = ray_us != 0 ? LSB(ray_us) : 64;
+        ray ^= bishop_moves[ai][NORTHEAST] | bishop_moves_inc[qi][NORTHEAST];
         attacks |= ray;
 
         ray = bishop_moves[pos][NORTHWEST];
-        ai = LSB(ray & enemies);
-        qi = LSB(ray & us);
-        ray ^= bishop_moves[ai <= qi ? ai : qi - 9][NORTHWEST];
+        ray_enemies = ray & enemies;
+        ray_us = ray & us;
+        ai = ray_enemies != 0 ? LSB(ray_enemies) : 64;
+        qi = ray_us != 0 ? LSB(ray_us) : 64;
+        ray ^= bishop_moves[ai][NORTHWEST] | bishop_moves_inc[qi][NORTHWEST];
         attacks |= ray;
     }
 
@@ -416,8 +450,8 @@ Bitboard gen_attacks(Board* board) {
     // Knight Attacks.
     Bitboard knights = get_pieces(board, KNIGHT, active);
     while (knights != 0) {
-        uint8_t pos = LSB(knights);
-        knights = CLEAR_BIT(knights, pos);
+        int pos = LSB(knights);
+        CLEAR_BIT(knights, pos);
         attacks |= knight_moves[pos];
     }
 
@@ -443,6 +477,7 @@ int gen_legal_moves(Board* board, Move* moves) {
     index = gen_pawn_promotions_captures(board, moves, index);
     index = gen_pawn_en_passant(board, moves, index);
 
+
     index = gen_knight_moves(board, moves, index);
     index = gen_king_moves(board, moves, index);
     index = gen_rook_moves(board, moves, index);
@@ -457,12 +492,14 @@ int gen_legal_moves(Board* board, Move* moves) {
     for (int i = 0; i < index; i++) {
         Move* move = &moves[i];
         make_move(board, move);
-        Bitboard king = get_pieces_color(board, active);
+        Bitboard king = get_pieces(board, KING, active);
+        switch_ply(board);
         Bitboard attacks = gen_attacks(board);
         // If king is not in check after making the move, add the move.
-        if (king & attacks == 0) {
+        if ((king & attacks) == 0) {
             moves[size++] = *move;
         }
+        switch_ply(board);
         undo_move(board, move);
     }
 

@@ -17,7 +17,7 @@ typedef uint8_t Piece;
 #define WHITE 0b000
 
 #define OPPOSITE(x) ((x) ^ BLACK)
-#define WHITE_TO_MOVE(x) ((x->active_color) == 0)
+#define WHITE_TO_MOVE(x) (((x)->active_color) == 0)
 #define IS_SLIDING(x) ((x) & 0b100 != 0)
 
 typedef struct {

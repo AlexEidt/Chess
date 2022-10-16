@@ -9,6 +9,7 @@
 
 extern "C" {
 	#include "Pumpking/board.h"
+	#include "Pumpking/move.h"
 }
 
 #define CAPTURE_AUDIO 0
@@ -29,6 +30,14 @@ private:
 
 	std::map<byte, std::map<byte, olc::Decal*>> pieces;
 	std::vector<int> audio;
+
+	// Moves the player can make as indices on the board.
+	std::vector<Move*> possible[64];
+	// Previously selected square.
+	int selected;
+
+	// Moves the player can make.
+	Move moves[256];
 
 	// Size of one square on the chess board.
 	int unit;
@@ -84,6 +93,8 @@ public:
 			}
 
 			pieces[color][type] = new olc::Decal(sprite);
+
+			selected = -1;
 		}
 
 		srand(std::time(0));
@@ -97,30 +108,65 @@ public:
 		dark = {119, 149, 86};
 		background = {49, 46, 43};
 
-		Clear(background);
-		int trim = unit / 4;
-		FillRect({unit - trim, unit - trim}, {8 * unit + 2 * trim, 8 * unit + 2 * trim}, {0, 0, 0});
-
-		// Draw Chess Board.
-		for (int file = 0; file < 8; file++) {
-			for (int rank = 0; rank < 8; rank++) {
-				bool color = (file + rank) % 2 != 0;
-
-				olc::vf2d pos = {(float) rank * unit + unit, (float) file * unit + unit};
-				FillRect(pos, {unit, unit}, color ? dark : light);
-			}
-		}
-
 		chessboard = new Board();
 		board_from_fen(chessboard, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
+		DrawBoard();
+
+		makeMoves();
 		return true;
 	}
 
 	bool OnUserUpdate(float fElapsedTime) override {
-		DrawBoard();
-
+		DrawPieces();
 		olc::vf2d mouse = { (float) GetMouseX(), (float) GetMouseY() };
+
+		if (GetMouse(0).bPressed) {
+			int file = (mouse.x - unit) / unit;
+			file = 7 - file;
+			int rank = (mouse.y - unit) / unit;
+			rank = 7 - rank;
+
+			if (file >= 0 && file <= 7 && rank >= 0 && rank <= 7) {
+				DrawBoard();
+				DrawPieces();
+
+				int index = rank * 8 + file;
+
+				Move* to_make = nullptr;
+				if (selected != -1) {
+					for (const auto& move : possible[selected]) {
+						if (move->to == index) {
+							to_make = move;
+							break;
+						}
+					}
+				}
+
+				selected = index;
+
+				if (to_make != nullptr) {
+					if (IS_CAPTURE(to_make->flags)) {
+						olc::SOUND::PlaySample(audio[CAPTURE_AUDIO]);
+					} else {
+						olc::SOUND::PlaySample(audio[MOVE_AUDIO]);
+					}
+
+					if (IS_PROMOTION(to_make->flags)) {
+						
+					}
+					make_move(chessboard, to_make);
+					switch_ply(chessboard);
+					makeMoves();
+				} else {
+					for (const auto& move : possible[index]) {
+						int r = 7 - move->to % 8;
+						int f = 7 - move->to / 8;
+						FillCircle({r * unit + unit * 3 / 2, f * unit + unit * 3 / 2}, unit / 4, {0, 0, 0, 100});
+					}
+				}
+			}
+		}
 
 		if (GetKey(olc::Key::Q).bPressed) olc::SOUND::PlaySample(audio[CAPTURE_AUDIO]);
 		if (GetKey(olc::Key::W).bPressed) olc::SOUND::PlaySample(audio[END_AUDIO]);
@@ -136,8 +182,25 @@ public:
 		return true;
 	}
 
-	// Draw the pieces on the board.
+	// Draws the chess board.
 	void DrawBoard() {
+		Clear(background);
+		int trim = unit / 4;
+		FillRect({unit - trim, unit - trim}, {8 * unit + 2 * trim, 8 * unit + 2 * trim}, {0, 0, 0});
+
+		// Draw Chess Board.
+		for (int file = 0; file < 8; file++) {
+			for (int rank = 0; rank < 8; rank++) {
+				bool color = (file + rank) % 2 != 0;
+
+				olc::vf2d pos = {(float) rank * unit + unit, (float) file * unit + unit};
+				FillRect(pos, {unit, unit}, color ? dark : light);
+			}
+		}
+	}
+
+	// Draw the pieces on the board.
+	void DrawPieces() {
 		olc::vf2d scale = {(float) unit / pieceSize, (float) unit / pieceSize};
 		for (int file = 0; file < 8; file++) {
 			for (int rank = 0; rank < 8; rank++) {
@@ -149,6 +212,19 @@ public:
 					DrawDecal(pos, pieces[color][piece], scale);
 				}
 			}
+		}
+	}
+
+	void makeMoves() {
+		for (int i = 0; i < 64; i++) {
+			possible[i].clear();
+		}
+
+		int legal = gen_legal_moves(chessboard, moves);
+
+		for (int i = 0; i < legal; i++) {
+			Move* move = &moves[i];
+			possible[move->from].push_back(move);
 		}
 	}
 };

@@ -34,8 +34,10 @@ void board_from_fen(Board* board, const char* fen) {
         }
         i++;
     }
+    i++;
     // Active color.
     board->active_color = fen[i++] == 'w' ? WHITE : BLACK;
+    i++;
     // Castling.
     while (fen[i] != ' ') {
         switch (fen[i++]) {
@@ -45,6 +47,7 @@ void board_from_fen(Board* board, const char* fen) {
             case 'Q': add_castle_queenside(board, WHITE); break;
         }
     }
+    i++;
     // En passant square.
     if (fen[i] != '-') {
         int file = 8 - (fen[i++] - 'a');
@@ -84,19 +87,19 @@ Bitboard get_pieces_color(Board* board, Piece color) {
 }
 
 Bitboard get_all_pieces(Board* board) {
-    return board->state[WHITE] & board->state[BLACK];
+    return board->state[WHITE] | board->state[BLACK];
 }
 
 void add_piece(Board* board, Piece piece, Piece color, uint8_t index) {
     board->positions[index] = piece;
-    board->state[color] = ADD_BIT(board->state[color], index);
-    board->state[piece] = ADD_BIT(board->state[piece], index);
+    ADD_BIT(board->state[color], index);
+    ADD_BIT(board->state[piece], index);
 }
 
 void remove_piece(Board* board, Piece piece, Piece color, uint8_t index) {
     board->positions[index] = 0;
-    board->state[color] = CLEAR_BIT(board->state[color], index);
-    board->state[piece] = CLEAR_BIT(board->state[piece], index);
+    CLEAR_BIT(board->state[color], index);
+    CLEAR_BIT(board->state[piece], index);
 }
 
 void add_castle_kingside(Board* board, Piece color) {
