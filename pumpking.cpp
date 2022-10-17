@@ -370,6 +370,7 @@ public:
 
 		int legal = gen_legal_moves(chessboard, moves);
 
+		// If a player cannot make any more moves, then they have lost.
 		if (legal == 0) {
 			gameOver = true;
 			winner = OPPOSITE(chessboard->active_color);

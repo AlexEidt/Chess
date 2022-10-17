@@ -192,13 +192,13 @@ int gen_castle_moves(Board* board, Move* moves, int index) {
 
     Bitboard king = get_pieces(board, KING, board->active_color);
     if ((king & attacks) == 0) { // If king is not in check.
-        uint8_t index = board->active_color & 1; // Maps White to 0, Black to 1.
-        Bitboard kingside = castling[index][KINGSIDE_PATH];
-        Bitboard queenside = castling[index][QUEENSIDE_PATH];
-        Bitboard queenside_path_rook = castling[index][QUEENSIDE_PATH_TO_ROOK];
-        Bitboard king_pos = castling[index][KING_POSITION];
-        Bitboard king_dst_kingside = castling[index][KING_DST_KINGSIDE];
-        Bitboard king_dst_queenside = castling[index][KING_DST_QUEENSIDE];
+        uint8_t color = board->active_color & 1; // Maps White to 0, Black to 1.
+        Bitboard kingside = castling[color][KINGSIDE_PATH];
+        Bitboard queenside = castling[color][QUEENSIDE_PATH];
+        Bitboard queenside_path_rook = castling[color][QUEENSIDE_PATH_TO_ROOK];
+        Bitboard king_pos = castling[color][KING_POSITION];
+        Bitboard king_dst_kingside = castling[color][KING_DST_KINGSIDE];
+        Bitboard king_dst_queenside = castling[color][KING_DST_QUEENSIDE];
 
         Bitboard us = get_pieces_color(board, board->active_color);
         Bitboard enemies = get_pieces_color(board, OPPOSITE(board->active_color));
