@@ -115,6 +115,8 @@ int gen_pawn_promotions_captures(Board* board, Move* moves, int index) {
 }
 
 int gen_pawn_en_passant(Board* board, Move* moves, int index) {
+    if (board->en_passant == 0) return index;
+
     Bitboard pawns = get_pieces(board, PAWN, board->active_color);
     Bitboard en_passant = 1ULL << board->en_passant;
 
@@ -485,18 +487,16 @@ int gen_legal_moves(Board* board, Move* moves) {
 
     index = gen_castle_moves(board, moves, index);
 
-    Piece active = board->active_color;
-
     Board copy = *board;
 
     int size = 0;
     for (int i = 0; i < index; i++) {
         Move* move = &moves[i];
         make_move_cheap(board, move);
-        Bitboard king = get_pieces(board, KING, active);
+        Bitboard king = get_pieces(board, KING, board->active_color);
         switch_ply(board);
         Bitboard attacks = gen_attacks(board);
-        // If king is not in check after making the move, add the move.
+        // If king is not in check after making the move, then it is legal.
         if ((king & attacks) == 0) {
             moves[size++] = *move;
         }
@@ -519,7 +519,7 @@ void make_move(Board* board, Move* move) {
     Piece inactive = OPPOSITE(active);
 
     // If King moved and it wasn't a castle and we still could have castled, then the player can no longer castle.
-    if (src_piece == KING && !IS_CASTLE(flags) && can_castle(board, active)) {
+    if (src_piece == KING && !IS_CASTLE(flags) && can_castle_color(board, active)) {
         remove_castle_kingside(board, active);
         remove_castle_queenside(board, active);
         move->flags |= CASTLING_LOST;

@@ -43,7 +43,7 @@ typedef uint16_t Flag;
 #define ADD_PROMOTED_PIECE(x) ((x) << 2)
 #define PROMOTED_PIECE(x) (((x) & PROMOTION) >> 2)
 #define SET_CAPTURED_PIECE(x) ((x) << 10)
-#define EXTRACT_CAPTURED_PIECE(x) ((x) >> 10)
+#define EXTRACT_CAPTURED_PIECE(x) (((x) >> 10) & 7)
 
 #define SET_EN_PASSANT(x) (((x) & 7) << 13)
 #define EXTRACT_EN_PASSANT(x) ((x) >> 13)

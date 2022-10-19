@@ -32,7 +32,7 @@ private:
 	std::vector<int> audio;
 
 	// Moves the player can make on every square of the board.
-	std::vector<Move*> possible[64];
+	std::vector<Move*> possible_moves[64];
 	// Previously selected square.
 	int selectedSource;
 	int selectedDestination;
@@ -55,7 +55,7 @@ private:
 	Piece winner; // WHITE, BLACK, or DRAW.
 
 	// Used to track duplicate move destination spots to avoid redrawing circles.
-	std::unordered_map<int, int> possible_spots;
+	std::vector<int> destinations;
 
 public:
 	bool OnUserCreate() override {
@@ -181,7 +181,7 @@ public:
 
 				Move* selected = nullptr;
 				if (selectedSource != -1) {
-					for (const auto& move : possible[selectedSource]) {
+					for (const auto& move : possible_moves[selectedSource]) {
 						if (move->to == index) {
 							selected = move;
 							break;
@@ -209,20 +209,20 @@ public:
 	}
 
 	// Integer to vector. Flattened index to rank and file.
-	olc::vi2d Itof(int index) {
-		return {7 - index & 7, 7 - index / 8};
+	olc::vi2d Itov(int index) {
+		return {7 - (index & 7), 7 - (index / 8)};
 	}
 
 	// Show Possible moves from a given source square.
 	void ShowPossibleMoves(int source) {
 		SetPixelMode(olc::Pixel::ALPHA);
-		possible_spots.clear();
-		for (const auto& move : possible[source]) {
-			// Check for duplicates destination spots.
-			if (possible_spots.find(move->to) != possible_spots.end()) continue;
-			possible_spots[move->to] = 0;
+		destinations.clear();
+		for (const auto& move : possible_moves[source]) {
+			// Check for duplicate destination spots.
+			if (std::find(destinations.begin(), destinations.end(), move->to) != destinations.end()) continue;
+			destinations.push_back(move->to);
 
-			olc::vi2d rf = Itof(move->to);
+			olc::vi2d rf = Itov(move->to);
 			olc::vi2d center = {rf.x * unit + unit * 3 / 2, rf.y * unit + unit * 3 / 2};
 			if (IS_CAPTURE(move->flags) && !IS_EN_PASSANT(move->flags)) {
 				FillCircle(center, unit / 2.1, {0, 0, 0, 100});
@@ -237,7 +237,7 @@ public:
 	// Make a move to the selected destination.
 	void MakeMove(Move* move) {
 		// Highlight the source and destination squares of the most recently made move.
-		olc::vi2d rfs = Itof(selectedSource), rfd = Itof(selectedDestination);
+		olc::vi2d rfs = Itov(selectedSource), rfd = Itov(selectedDestination);
 		FillRect({unit * rfs.x + unit, unit * rfs.y + unit}, {unit, unit}, highlight);
 		FillRect({unit * rfd.x + unit, unit * rfd.y + unit}, {unit, unit}, highlight);
 
@@ -261,7 +261,7 @@ public:
 
 	// Once the user selects a piece to promote, make the corresponding move on the board.
 	void HandlePromotion() {
-		for (const auto& move : possible[selectedSource]) {
+		for (const auto& move : possible_moves[selectedSource]) {
 			if (move->to == selectedDestination && IS_PROMOTION(move->flags) && PROMOTED_PIECE(move->flags) == promoted) {
 				if (IS_CAPTURE(move->flags)) {
 					olc::SOUND::PlaySample(audio[CAPTURE_AUDIO]);
@@ -276,7 +276,7 @@ public:
 				DrawBoard();
 
 				// Highlight the source and destination squares of the most recently made move.
-				olc::vi2d rfs = Itof(selectedSource), rfsd = Itof(selectedDestination);
+				olc::vi2d rfs = Itov(selectedSource), rfsd = Itov(selectedDestination);
 				FillRect({unit * rfs.x + unit, unit * rfs.y + unit}, {unit, unit}, highlight);
 				FillRect({unit * rfsd.x + unit, unit * rfsd.y + unit}, {unit, unit}, highlight);
 				break;
@@ -290,28 +290,26 @@ public:
 		int cy = screenHeight / 2;
 		int trim = unit / 5;
 		int size = (4 * unit - 2 * trim) / 2;
-		FillRect({cx - size - trim, cy - size - trim}, {size * 2 + 2 * trim, size * 2 + 2 * trim}, {0, 0, 0});
+		FillRect({cx - size - trim, cy - size - trim}, {(size + trim) * 2, (size + trim) * 2}, {0, 0, 0});
 		FillRect({cx - size, cy - size}, {size * 2, size * 2}, {245, 245, 245});
 
-		olc::vf2d scale = {(float) size / pieceSize, (float) size / pieceSize};
+		olc::vf2d scale = {float(size / pieceSize), float(size / pieceSize)};
 
-		olc::vf2d top_left = {(float) cx - size, (float) cy - size};
-		olc::vf2d top_right = {(float) cx, (float) cy - size};
-		olc::vf2d bottom_left = {(float) cx - size, (float) cy};
-		olc::vf2d bottom_right = {(float) cx, (float) cy};
+		olc::vf2d top_left = {float(cx - size), float(cy - size)};
+		olc::vf2d top_right = {float(cx), float(cy - size)};
+		olc::vf2d bottom_left = {float(cx - size), float(cy)};
+		olc::vf2d bottom_right = {float(cx), float(cy)};
 
 		auto overlap = [](olc::vf2d p1, olc::vf2d p2, int size) {
 			return p2.x <= p1.x && p1.x <= p2.x + size && p2.y <= p1.y && p1.y <= p2.y + size;
 		};
 		
-		olc::vf2d mouse = {(float) GetMouseX(), (float) GetMouseY()};
+		olc::vf2d mouse = {float(GetMouseX()), float(GetMouseY())};
 
 		bool tl = overlap(mouse, top_left, size);
 		bool tr = overlap(mouse, top_right, size);
 		bool bl = overlap(mouse, bottom_left, size);
 		bool br = overlap(mouse, bottom_right, size);
-
-		olc::vf2d sizevf = scale * pieceSize;
 
 		olc::Pixel normal = {255, 255, 255, 255};
 		olc::Pixel tint = {255, 255, 255, 100};
@@ -337,7 +335,7 @@ public:
 
 		for (int file = 0; file < 8; file++) {
 			for (int rank = 0; rank < 8; rank++) {
-				olc::vf2d pos = {(float) rank * unit + unit, (float) file * unit + unit};
+				olc::vf2d pos = {float(rank * unit + unit), float(file * unit + unit)};
 				FillRect(pos, {unit, unit}, (file + rank) % 2 != 0 ? dark : light);
 			}
 		}
@@ -345,7 +343,7 @@ public:
 
 	// Draw the pieces on the board.
 	void DrawPieces() {
-		olc::vf2d scale = {(float) unit / pieceSize, (float) unit / pieceSize};
+		olc::vf2d scale = {float(unit / pieceSize), float(unit / pieceSize)};
 		for (int file = 0; file < 8; file++) {
 			for (int rank = 0; rank < 8; rank++) {
 				// If the promotion screen is up, then do not draw pieces on ranks 3-6 and files c-f
@@ -355,8 +353,8 @@ public:
 				Piece piece = get_piece(chessboard, index);
 				if (piece != 0) {
 					Piece color = get_color(chessboard, index);
-					olc::vi2d rf = Itof(index);
-					DrawDecal({(float) rf.x * unit + unit, (float) rf.y * unit + unit}, pieces[color][piece], scale);
+					olc::vi2d rf = Itov(index);
+					DrawDecal({float(rf.x * unit + unit), float(rf.y * unit + unit)}, pieces[color][piece], scale);
 				}
 			}
 		}
@@ -365,13 +363,14 @@ public:
 	// Generate all possible moves for the current player.
 	void GenerateMoves() {
 		for (int i = 0; i < 64; i++) {
-			possible[i].clear();
+			possible_moves[i].clear();
 		}
 
 		int legal = gen_legal_moves(chessboard, moves);
 
 		// If a player cannot make any more moves, then they have lost.
 		if (legal == 0) {
+			// if player is in check then declare winner, otherwise it's a draw.
 			gameOver = true;
 			winner = OPPOSITE(chessboard->active_color);
 			return;
@@ -379,7 +378,7 @@ public:
 
 		for (int i = 0; i < legal; i++) {
 			Move* move = &moves[i];
-			possible[move->from].push_back(move);
+			possible_moves[move->from].push_back(move);
 		}
 	}
 };

@@ -38,7 +38,6 @@ void clear(Board* board);
 
 Piece get_piece(Board* board, uint8_t index);
 Piece get_color(Board* board, uint8_t index);
-
 Bitboard get_pieces(Board* board, Piece piece, Piece color);
 Bitboard get_pieces_color(Board* board, Piece color);
 Bitboard get_all_pieces(Board* board);
@@ -52,6 +51,7 @@ void remove_castle_kingside(Board* board, Piece color);
 void remove_castle_queenside(Board* board, Piece color);
 bool can_castle_kingside(Board* board, Piece color);
 bool can_castle_queenside(Board* board, Piece color);
-bool can_castle(Board* board, Piece color);
+bool can_castle_color(Board* board, Piece color);
+bool can_castle(Board* board);
 
 #endif

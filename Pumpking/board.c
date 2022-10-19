@@ -60,7 +60,53 @@ void board_from_fen(Board* board, const char* fen) {
 }
 
 void board_to_fen(Board* board, char* fen) {
-    
+    int pos = 0;
+    // Pieces on the board.
+    for (int rank = 7; rank >= 0; rank--) {
+        int count = 0;
+        for (int file = 7; file >= 0; file--) {
+            int index = rank * 8 + file;
+            Piece piece = get_piece(board, index);
+            if (piece == 0) {
+                file--;
+                count++;
+                continue;
+            }
+            if (count != 0) {
+                fen[pos++] = count + '0';
+            }
+            if (piece != 0) {
+                Piece color = get_color(board, index);
+                fen[pos++] = " PNKBRQ"[piece] + ('a' - 'A') * (color & 1);
+            }
+        }
+        fen[pos++] = '/';
+    }
+    fen[pos++] = ' ';
+
+    // Active Color.
+    fen[pos++] = board->active_color == WHITE ? 'w' : 'b';
+    fen[pos++] = ' ';
+
+    // Castling Availability.
+    if (can_castle(board)) {
+        if (can_castle_kingside(board, WHITE)) fen[pos++] = 'K';
+        if (can_castle_queenside(board, WHITE)) fen[pos++] = 'Q';
+        if (can_castle_kingside(board, BLACK)) fen[pos++] = 'k';
+        if (can_castle_queenside(board, BLACK)) fen[pos++] = 'q';
+    } else {
+        fen[pos++] = '-';
+    }
+    fen[pos++] = ' ';
+
+    // En passant square;
+    if (board->en_passant != 0) {
+        fen[pos++] = (board->en_passant / 8) + 'a';
+        fen[pos++] = (7 - (board->en_passant & 7)) + '1';
+    } else {
+        fen[pos++] = '-';
+    }
+    fen[pos++] = ' ';
 }
 
 void switch_ply(Board* board) {
@@ -127,6 +173,10 @@ bool can_castle_queenside(Board* board, Piece color) {
     return (board->castle[color & 1] & 0b10) != 0;
 }
 
-bool can_castle(Board* board, Piece color) {
+bool can_castle_color(Board* board, Piece color) {
     return board->castle[color & 1] != 0;
+}
+
+bool can_castle(Board* board) {
+    return *(uint16_t*)(board->castle) != 0;
 }
