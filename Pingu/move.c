@@ -322,7 +322,7 @@ int gen_intercardinal_moves(Board* board, Move* moves, int index, Piece piece) {
         ray_us = ray & us;
         ai = ray_enemies != 0 ? LSB(ray_enemies) : 64;
         qi = ray_us != 0 ? LSB(ray_us) : 64;
-        ray ^= ray & (bishop_moves[ai][NORTHWEST] | bishop_moves_inc[qi][NORTHWEST]);
+        ray ^= bishop_moves[ai][NORTHWEST] | bishop_moves_inc[qi][NORTHWEST];
         index = extract_moves(ray & enemies, pos, moves, index, CAPTURE);
         index = extract_moves(ray & empty, pos, moves, index, QUIET);
     }
@@ -470,7 +470,7 @@ Bitboard gen_attacks(Board* board) {
     return attacks;
 }
 
-int gen_legal_moves(Board* board, Move* moves) {
+int gen_moves(Board* board, Move* moves) {
     int index = 0;
 
     index = gen_pawn_pushes(board, moves, index);
@@ -487,11 +487,11 @@ int gen_legal_moves(Board* board, Move* moves) {
 
     index = gen_castle_moves(board, moves, index);
 
-    Board copy = *board;
+    const Board copy = *board;
 
     int size = 0;
     for (int i = 0; i < index; i++) {
-        Move* move = &moves[i];
+        const Move* move = &moves[i];
         make_move_cheap(board, move);
         Bitboard king = get_pieces(board, KING, board->active_color);
         switch_ply(board);
@@ -518,47 +518,34 @@ void make_move(Board* board, Move* move) {
     Piece active = board->active_color;
     Piece inactive = OPPOSITE(active);
 
-    // If King moved and it wasn't a castle and we still could have castled, then the player can no longer castle.
-    if (src_piece == KING && !IS_CASTLE(flags) && can_castle_color(board, active)) {
+    // If King moved and it wasn't a castle, then the player can no longer castle.
+    if (src_piece == KING && !IS_CASTLE(flags)) {
         remove_castle_kingside(board, active);
         remove_castle_queenside(board, active);
-        move->flags |= CASTLING_LOST;
     }
 
     // If any of the rooks moved from one of the corners, then the player can no longer castle on that side.
     if (src_piece == ROOK) {
         if (src == H1 || src == H8) {
             remove_castle_kingside(board, active);
-            move->flags |= CASTLING_LOST_KINGSIDE;
         } else if (src == A1 || src == A8) {
             remove_castle_queenside(board, active);
-            move->flags |= CASTLING_LOST_QUEENSIDE;
         }
     }
 
-    // Set the previous en passant square in the flag.
-    move->flags |= SET_EN_PASSANT(board->en_passant);
-
     if (IS_CAPTURE(flags)) {
-        // Add Captured Piece to Move flag.
-        move->flags |= SET_CAPTURED_PIECE(dst_piece);
-
         // If a rook is captured, then remove the other players ability to castle on that side.
         if (dst_piece == ROOK) {
             if (dst == H1 || dst == H8) {
                 remove_castle_kingside(board, inactive);
-                move->flags |= CASTLING_LOST_KINGSIDE;
             } else if (dst == A1 || dst == A8) {
                 remove_castle_queenside(board, inactive);
-                move->flags |= CASTLING_LOST_QUEENSIDE;
             }
         }
 
         if (IS_EN_PASSANT(flags)) {
             int8_t offset = WHITE_TO_MOVE(board) ? -8 : 8;
             remove_piece(board, PAWN, inactive, dst + offset);
-            // Remove the en passant square once the en passant capture happens.
-            board->en_passant = 0;
         } else {
             remove_piece(board, dst_piece, inactive, dst);
         }
@@ -578,94 +565,30 @@ void make_move(Board* board, Move* move) {
         board->en_passant = dst + offset;
     } else {
         // If the right to capture en passant is not exercised immediately, it is subsequently lost.
+        // If an en passant capture happens, then it is lost as well.
         board->en_passant = 0;
     }
 
     // If the move was a castle, move the rook to the corresponding position.
-    if (IS_CASTLE_KINGSIDE(flags)) {
-        move->flags |= CASTLING_LOST_KINGSIDE;
-        if (WHITE_TO_MOVE(board)) {
-            remove_piece(board, ROOK, active, H1);
-            add_piece(board, ROOK, active, F1);
-        } else {
-            remove_piece(board, ROOK, active, H8);
-            add_piece(board, ROOK, active, F8);
-        }
-        remove_castle_kingside(board, active);
-    } else if (IS_CASTLE_QUEENSIDE(flags)) {
-        move->flags |= CASTLING_LOST_QUEENSIDE;
-        if (WHITE_TO_MOVE(board)) {
-            remove_piece(board, ROOK, active, A1);
-            add_piece(board, ROOK, active, D1);
-        } else {
-            remove_piece(board, ROOK, active, A8);
-            add_piece(board, ROOK, active, D8);
-        }
-        remove_castle_queenside(board, active);
-    }
-}
-
-void undo_move(Board* board, Move* move) {
-    uint8_t src = move->from;
-    uint8_t dst = move->to;
-
-    Piece src_piece = board->positions[src];
-    Piece dst_piece = board->positions[dst];
-
-    Flag flags = move->flags;
-
-    Piece active = board->active_color;
-    Piece inactive = OPPOSITE(active);
-
-    remove_piece(board, dst_piece, active, dst);
-    if (IS_CAPTURE(flags)) {
-        if (IS_EN_PASSANT(flags)) {
-            int8_t offset = WHITE_TO_MOVE(board) ? -8 : 8;
-            add_piece(board, PAWN, inactive, dst + offset);
-        } else {
-            add_piece(board, EXTRACT_CAPTURED_PIECE(flags), inactive, dst);
-        }
-        // Remove Captured Piece from Move flag.
-        move->flags &= ~SET_CAPTURED_PIECE(dst_piece);
-    }
-    
-    if (IS_PROMOTION(flags)) {
-        add_piece(board, PAWN, active, src);
-    } else {
-        add_piece(board, dst_piece, active, src);
-    }
-
-    uint8_t offset = WHITE_TO_MOVE(board) ? 40 : 16;
-    uint8_t en_passant = EXTRACT_EN_PASSANT(flags) + offset;
-    board->en_passant = en_passant;
-    // Remove the previous en passant square in the flag.
-    move->flags &= ~SET_EN_PASSANT(en_passant);
-
-    if (IS_CASTLING_LOST_KINGSIDE(flags)) {
-        add_castle_kingside(board, IS_CAPTURE(flags) ? inactive : active);
-        move->flags &= ~CASTLING_LOST_KINGSIDE;
-    }
-
-    if (IS_CASTLING_LOST_QUEENSIDE(flags)) {
-        add_castle_queenside(board, IS_CAPTURE(flags) ? inactive : active);
-        move->flags &= ~CASTLING_LOST_QUEENSIDE;
-    }
-
-    if (IS_CASTLE_KINGSIDE(flags)) {
-        if (WHITE_TO_MOVE(board)) {
-            remove_piece(board, ROOK, active, F1);
-            add_piece(board, ROOK, active, H1);
-        } else {
-            remove_piece(board, ROOK, inactive, F8);
-            add_piece(board, ROOK, inactive, H8);
-        }
-    } else if (IS_CASTLE_QUEENSIDE(flags)) {
-        if (WHITE_TO_MOVE(board)) {
-            remove_piece(board, ROOK, active, D1);
-            add_piece(board, ROOK, active, A1);
-        } else {
-            remove_piece(board, ROOK, inactive, D8);
-            add_piece(board, ROOK, inactive, A8);
+    if (IS_CASTLE(flags)) {
+        if (IS_CASTLE_KINGSIDE(flags)) {
+            if (WHITE_TO_MOVE(board)) {
+                remove_piece(board, ROOK, active, H1);
+                add_piece(board, ROOK, active, F1);
+            } else {
+                remove_piece(board, ROOK, active, H8);
+                add_piece(board, ROOK, active, F8);
+            }
+            remove_castle_kingside(board, active);
+        } else if (IS_CASTLE_QUEENSIDE(flags)) {
+            if (WHITE_TO_MOVE(board)) {
+                remove_piece(board, ROOK, active, A1);
+                add_piece(board, ROOK, active, D1);
+            } else {
+                remove_piece(board, ROOK, active, A8);
+                add_piece(board, ROOK, active, D8);
+            }
+            remove_castle_queenside(board, active);
         }
     }
 }
@@ -686,8 +609,6 @@ void make_move_cheap(Board* board, Move* move) {
         if (IS_EN_PASSANT(flags)) {
             int8_t offset = WHITE_TO_MOVE(board) ? -8 : 8;
             remove_piece(board, PAWN, inactive, dst + offset);
-            // Remove the en passant square once the en passant capture happens.
-            board->en_passant = 0;
         } else {
             remove_piece(board, dst_piece, inactive, dst);
         }
@@ -711,21 +632,23 @@ void make_move_cheap(Board* board, Move* move) {
     }
 
     // If the move was a castle, move the rook to the corresponding position.
-    if (IS_CASTLE_KINGSIDE(flags)) {
-        if (WHITE_TO_MOVE(board)) {
-            remove_piece(board, ROOK, active, H1);
-            add_piece(board, ROOK, active, F1);
-        } else {
-            remove_piece(board, ROOK, active, H8);
-            add_piece(board, ROOK, active, F8);
-        }
-    } else if (IS_CASTLE_QUEENSIDE(flags)) {
-        if (WHITE_TO_MOVE(board)) {
-            remove_piece(board, ROOK, active, A1);
-            add_piece(board, ROOK, active, D1);
-        } else {
-            remove_piece(board, ROOK, active, A8);
-            add_piece(board, ROOK, active, D8);
+    if (IS_CASTLE(flags)) {
+        if (IS_CASTLE_KINGSIDE(flags)) {
+            if (WHITE_TO_MOVE(board)) {
+                remove_piece(board, ROOK, active, H1);
+                add_piece(board, ROOK, active, F1);
+            } else {
+                remove_piece(board, ROOK, active, H8);
+                add_piece(board, ROOK, active, F8);
+            }
+        } else if (IS_CASTLE_QUEENSIDE(flags)) {
+            if (WHITE_TO_MOVE(board)) {
+                remove_piece(board, ROOK, active, A1);
+                add_piece(board, ROOK, active, D1);
+            } else {
+                remove_piece(board, ROOK, active, A8);
+                add_piece(board, ROOK, active, D8);
+            }
         }
     }
 }

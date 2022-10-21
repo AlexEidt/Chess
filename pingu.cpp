@@ -1,5 +1,5 @@
 // Alex Eidt
-// Pumpking Chess Engine.
+// Pingu Chess Engine.
 
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
@@ -8,8 +8,8 @@
 #include "olcPGEX_Sound.h"
 
 extern "C" {
-	#include "Pumpking/board.h"
-	#include "Pumpking/move.h"
+	#include "Pingu/board.h"
+	#include "Pingu/move.h"
 }
 
 #define CAPTURE_AUDIO 0
@@ -20,7 +20,7 @@ extern "C" {
 class Chess : public olc::PixelGameEngine {
 public:
 	Chess() {
-		sAppName = "Pumpking";
+		sAppName = "Pingu";
 	}
 
 private:
@@ -366,7 +366,7 @@ public:
 			possible_moves[i].clear();
 		}
 
-		int legal = gen_legal_moves(chessboard, moves);
+		int legal = gen_moves(chessboard, moves);
 
 		// If a player cannot make any more moves, then they have lost.
 		if (legal == 0) {

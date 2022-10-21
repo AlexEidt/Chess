@@ -5,8 +5,8 @@
 
 typedef uint64_t Bitboard;
 
-#define LSB(x) (__builtin_ctzll((x)))
-#define MSB(x) (63 - __builtin_clzll((x)))
+#define LSB(x) (__builtin_ctzll(x))
+#define MSB(x) (63 - __builtin_clzll(x))
 
 #define ADD_BIT(board, pos) ((board) |= (1ULL << (pos)))
 #define CLEAR_BIT(board, pos) ((board) &= ~(1ULL << (pos)))

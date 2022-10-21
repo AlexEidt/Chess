@@ -15,7 +15,7 @@
 // 10th Bit: Did move result in castling being lost queenside?
 // 11th-13th Bits: Captured Piece.
 // 14th-16th Bits: Previous En Passant Square. 0-7 -> File A-H.
-typedef uint16_t Flag;
+typedef uint8_t Flag;
 
 #define QUIET 0x0
 #define CAPTURE 0x1
@@ -25,9 +25,6 @@ typedef uint16_t Flag;
 #define CASTLE_KINGSIDE 0x40
 #define CASTLE_QUEENSIDE 0x80
 #define CASTLE 0xc0
-#define CASTLING_LOST_KINGSIDE 0x100
-#define CASTLING_LOST_QUEENSIDE 0x200
-#define CASTLING_LOST 0x300
 
 #define IS_CAPTURE(x) (((x) & CAPTURE) != 0)
 #define IS_DOUBLE_PUSH(x) (((x) & PAWN_DOUBLE) != 0)
@@ -36,17 +33,9 @@ typedef uint16_t Flag;
 #define IS_CASTLE_KINGSIDE(x) (((x) & CASTLE_KINGSIDE) != 0)
 #define IS_CASTLE_QUEENSIDE(x) (((x) & CASTLE_QUEENSIDE) != 0)
 #define IS_CASTLE(x) (((x) & CASTLE) != 0)
-#define IS_CASTLING_LOST_KINGSIDE(x) (((x) & CASTLING_LOST_KINGSIDE) != 0)
-#define IS_CASTLING_LOST_QUEENSIDE(x) (((x) & CASTLING_LOST_QUEENSIDE) != 0)
-#define IS_CASTLING_LOST(x) (((x) & CASTLING_LOST) != 0)
 
 #define ADD_PROMOTED_PIECE(x) ((x) << 2)
 #define PROMOTED_PIECE(x) (((x) & PROMOTION) >> 2)
-#define SET_CAPTURED_PIECE(x) ((x) << 10)
-#define EXTRACT_CAPTURED_PIECE(x) (((x) >> 10) & 7)
-
-#define SET_EN_PASSANT(x) (((x) & 7) << 13)
-#define EXTRACT_EN_PASSANT(x) ((x) >> 13)
 
 typedef struct {
     uint8_t to, from;
@@ -405,11 +394,9 @@ Bitboard gen_cardinal_attacks(Board* board, Piece piece);
 Bitboard gen_intercardinal_attacks(Board* board, Piece piece);
 Bitboard gen_attacks(Board* board);
 
-int gen_legal_moves(Board* board, Move* moves);
+int gen_moves(Board* board, Move* moves);
 
 void make_move(Board* board, Move* move);
-void undo_move(Board* board, Move* move);
-
 void make_move_cheap(Board* board, Move* move);
 
 #endif
