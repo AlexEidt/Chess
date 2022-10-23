@@ -9,7 +9,6 @@ bool select_opening(Board* board, Move* move) {
     Move moves[256];
     int n_moves = gen_moves(board, moves);
 
-    uint32_t* imoves = (uint32_t*) moves;
     uint64_t board_hash = hash(board);
 
     const int openings_size = sizeof(openings) / sizeof(Opening);
@@ -19,10 +18,11 @@ bool select_opening(Board* board, Move* move) {
     for (int i = 0; i < openings_size && n_openings < possible_size; i++) {
         Opening* opening = &openings[i];
         if (opening->hash == board_hash) {
-            uint32_t move = (uint32_t*) &opening->move;
+            Move* move = &opening->move;
             // Check if the given move is valid in case of hash collision.
             for (int j = 0; j < n_moves; j++) {
-                if (imoves[j] == move) {
+                Move* check = &moves[j];
+                if (check->to == move->to && check->from == move->from && check->flags == move->flags) {
                     possible[n_openings++] = i;
                     break;
                 }

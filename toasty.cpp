@@ -1,5 +1,5 @@
 // Alex Eidt
-// Pingu Chess Engine.
+// Toasty Chess Engine.
 
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
@@ -8,8 +8,8 @@
 #include "olcPGEX_Sound.h"
 
 extern "C" {
-	#include "Pingu/board.h"
-	#include "Pingu/move.h"
+	#include "Toasty/board.h"
+	#include "Toasty/move.h"
 }
 
 #define CAPTURE_AUDIO 0
@@ -22,7 +22,7 @@ extern "C" {
 class Chess : public olc::PixelGameEngine {
 public:
 	Chess() {
-		sAppName = "Pingu";
+		sAppName = "Toasty";
 	}
 
 private:

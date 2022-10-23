@@ -15,7 +15,7 @@
 // 10th Bit: Did move result in castling being lost queenside?
 // 11th-13th Bits: Captured Piece.
 // 14th-16th Bits: Previous En Passant Square. 0-7 -> File A-H.
-typedef uint16_t Flag;
+typedef uint8_t Flag;
 
 #define QUIET 0x0
 #define CAPTURE 0x1
