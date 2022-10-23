@@ -17,6 +17,8 @@ extern "C" {
 #define MOVE_AUDIO 2
 #define WARNING_AUDIO 3
 
+#define BOARD_STATE "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
 class Chess : public olc::PixelGameEngine {
 public:
 	Chess() {
@@ -59,9 +61,9 @@ private:
 
 public:
 	bool OnUserCreate() override {
-		std::filesystem::path dir (std::filesystem::current_path().string());
-		std::filesystem::path spriteDir ("Pieces");
-		std::filesystem::path audioDir ("Audio");
+		std::filesystem::path dir(std::filesystem::current_path().string());
+		std::filesystem::path spriteDir("Pieces");
+		std::filesystem::path audioDir("Audio");
 
 		olc::SOUND::InitialiseAudio(44100, 1, 8, 512);
 
@@ -128,7 +130,7 @@ public:
 		selectedDestination = -1;
 
 		chessboard = new Board();
-		board_from_fen(chessboard, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+		board_from_fen(chessboard, BOARD_STATE);
 
 		DrawBoard();
 		GenerateMoves();
@@ -137,21 +139,26 @@ public:
 	}
 
 	bool OnUserUpdate(float fElapsedTime) override {
+		olc::vi2d mouse = {GetMouseX(), GetMouseY()};
 		DrawPieces();
 
-		if (gameOver) {
-			std::string text;
-			switch (winner) {
-				case WHITE:
-					text = "White Wins!";
-					break;
-				case BLACK:
-					text = "Black Wins!";
-					break;
-				case DRAW:
-					text = "Draw";
-					break;
+		// Draw selected piece at mouse position.
+		if (selectedSource != -1 && !isPromotion) {
+			Piece piece = get_piece(chessboard, selectedSource);
+			Piece color = get_color(chessboard, selectedSource);
+			if (piece != 0 && color == chessboard->active_color && !possible_moves[selectedSource].empty()) {
+				olc::vf2d scale = {float(unit / pieceSize), float(unit / pieceSize)};
+				DrawDecal({float(mouse.x - unit / 2), float(mouse.y - unit / 2)}, pieces[color][piece], scale);
 			}
+		}
+
+		if (gameOver) {
+			char text[12] = "White Wins!";
+			// switch (winner) {
+			// 	case WHITE: text = "White Wins!"; break;
+			// 	case BLACK: text = "Black Wins!"; break;
+			// 	case DRAW: text = "Draw"; break;
+			// }
 			DrawStringDecal({10, 10}, text, {255, 255, 255}, {5, 5});
 			return true;
 		}
@@ -169,7 +176,6 @@ public:
 		
 		// If the user clicks on a piece, show possible moves and allow user to make a move.
 		if (GetMouse(0).bPressed) {
-			olc::vi2d mouse = {GetMouseX(), GetMouseY()};
 			int file = 7 - ((mouse.x - unit) / unit);
 			int rank = 7 - ((mouse.y - unit) / unit);
 
@@ -194,7 +200,12 @@ public:
 					MakeMove(selected);
 				} else {
 					selectedSource = index;
-					ShowPossibleMoves(index);
+					if (!possible_moves[selectedSource].empty()) {
+						// Highlight the starting position.
+						olc::vi2d rfs = Itov(selectedSource);
+						FillRect({unit * rfs.x + unit, unit * rfs.y + unit}, {unit, unit}, highlight);
+						ShowPossibleMoves();
+					}
 				}
 			}
 		}
@@ -210,14 +221,14 @@ public:
 
 	// Integer to vector. Flattened index to rank and file.
 	olc::vi2d Itov(int index) {
-		return {7 - (index & 7), 7 - (index / 8)};
+		return {7 - (index % 8), 7 - (index / 8)};
 	}
 
-	// Show Possible moves from a given source square.
-	void ShowPossibleMoves(int source) {
+	// Show Possible moves from the selected source square.
+	void ShowPossibleMoves() {
 		SetPixelMode(olc::Pixel::ALPHA);
 		destinations.clear();
-		for (const auto& move : possible_moves[source]) {
+		for (const auto& move : possible_moves[selectedSource]) {
 			// Check for duplicate destination spots.
 			if (std::find(destinations.begin(), destinations.end(), move->to) != destinations.end()) continue;
 			destinations.push_back(move->to);
@@ -253,7 +264,6 @@ public:
 			}
 
 			make_move(chessboard, move);
-			switch_ply(chessboard);
 
 			GenerateMoves();
 		}
@@ -270,7 +280,6 @@ public:
 				}
 
 				make_move(chessboard, move);
-				switch_ply(chessboard);
 
 				GenerateMoves();
 				DrawBoard();
@@ -351,7 +360,7 @@ public:
 				if (isPromotion && file >= 2 && file <= 5 && rank >= 2 && rank <= 5) continue;
 				int index = file * 8 + rank;
 				Piece piece = get_piece(chessboard, index);
-				if (piece != 0) {
+				if (piece != 0 && (index != selectedSource || possible_moves[selectedSource].empty())) {
 					Piece color = get_color(chessboard, index);
 					olc::vi2d rf = Itov(index);
 					DrawDecal({float(rf.x * unit + unit), float(rf.y * unit + unit)}, pieces[color][piece], scale);

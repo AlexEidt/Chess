@@ -22,11 +22,13 @@ typedef uint8_t Piece;
 #define IS_SLIDING(x) ((x) & 0b100 != 0)
 
 typedef struct {
+    uint8_t positions[64]; // Stores locations of pieces.
+    Bitboard state[8]; // One bitboard for each piece type and color.
     Piece active_color;
     uint8_t en_passant;
     uint8_t castle[2]; // First bit for Kingside, Second for Queenside.
-    Bitboard state[8];
-    uint8_t positions[64]; // Stores locations of pieces.
+    uint8_t half_moves;
+    uint8_t full_moves;
 } Board;
 
 void board_from_fen(Board* board, const char* fen);
@@ -35,6 +37,8 @@ void board_to_fen(Board* board, char* fen);
 void switch_ply(Board* board);
 
 void clear(Board* board);
+bool equals(Board* board, Board* other);
+uint64_t hash(Board* board);
 
 Piece get_piece(Board* board, uint8_t index);
 Piece get_color(Board* board, uint8_t index);

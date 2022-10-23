@@ -35,9 +35,11 @@ void board_from_fen(Board* board, const char* fen) {
         i++;
     }
     i++;
+
     // Active color.
     board->active_color = fen[i++] == 'w' ? WHITE : BLACK;
     i++;
+
     // Castling.
     while (fen[i] != ' ') {
         switch (fen[i++]) {
@@ -48,6 +50,7 @@ void board_from_fen(Board* board, const char* fen) {
         }
     }
     i++;
+
     // En passant square.
     if (fen[i] != '-') {
         int file = 8 - (fen[i++] - 'a');
@@ -56,6 +59,17 @@ void board_from_fen(Board* board, const char* fen) {
     } else {
         board->en_passant = 0;
         i++;
+    }
+
+    // Half moves.
+    while (fen[i] != ' ') {
+        board->half_moves = board->half_moves * 10 + (fen[i++] - '0');
+    }
+    i++;
+
+    // Full Moves.
+    while (fen[i] != 0) {
+        board->full_moves = board->full_moves * 10 + (fen[i++] - '0');
     }
 }
 
@@ -107,6 +121,29 @@ void board_to_fen(Board* board, char* fen) {
         fen[pos++] = '-';
     }
     fen[pos++] = ' ';
+
+    // Half moves.
+    uint8_t moves = board->half_moves;
+    char buff[8];
+    int curr = 0;
+    while (moves != 0) {
+        uint8_t digit = moves % 10;
+        moves /= 10;
+        buff[curr++] = digit + '0';
+    }
+    for (int i = curr - 1; i >= 0; i--) fen[pos++] = buff[i];
+
+    // Full moves.
+    moves = board->full_moves;
+    curr = 0;
+    while (moves != 0) {
+        uint8_t digit = moves % 10;
+        moves /= 10;
+        buff[curr++] = digit + '0';
+    }
+    for (int i = curr - 1; i >= 0; i--) fen[pos++] = buff[i];
+
+    fen[pos++] = 0;
 }
 
 void switch_ply(Board* board) {
@@ -115,6 +152,30 @@ void switch_ply(Board* board) {
 
 void clear(Board* board) {
     memset(board, 0, sizeof(Board));
+}
+
+bool equals(Board* board, Board* other) {
+    // Can use memcmp because every board is cleared using memset 0.
+    return memcmp(board, other, sizeof(Board)) == 0;
+}
+
+// http://www.cse.yorku.ca/~oz/hash.html
+// https://stackoverflow.com/questions/7666509/hash-function-for-string
+uint64_t hash(Board *board) {
+    // uint64_t hash = 5381;
+    char* ptr = (char*) board;
+
+    // for (int i = 0; i < sizeof(Board); i++) {
+    //     hash = hash * 33 + ptr[i];
+    // }
+    uint64_t hash = 525201411107845655ULL;
+    for (int i = 0; i < sizeof(Board); i++) {
+        hash ^= ptr[i];
+        hash *= 0x5bd1e9955bd1e995;
+        hash ^= hash >> 47;
+    }
+
+    return hash;
 }
 
 Piece get_piece(Board* board, uint8_t index) {

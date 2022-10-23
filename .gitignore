@@ -1,4 +1,5 @@
 *.exe
+*.txt
 /.vscode
 
 *.py

@@ -491,7 +491,7 @@ int gen_moves(Board* board, Move* moves) {
 
     int size = 0;
     for (int i = 0; i < index; i++) {
-        const Move* move = &moves[i];
+        Move* move = &moves[i];
         make_move_cheap(board, move);
         Bitboard king = get_pieces(board, KING, board->active_color);
         switch_ply(board);
@@ -517,6 +517,16 @@ void make_move(Board* board, Move* move) {
 
     Piece active = board->active_color;
     Piece inactive = OPPOSITE(active);
+
+    if (src_piece == PAWN || IS_CAPTURE(flags)) {
+        board->half_moves = 0;
+    } else {
+        board->half_moves++;
+    }
+
+    if (active == BLACK) {
+        board->full_moves++;
+    }
 
     // If King moved and it wasn't a castle, then the player can no longer castle.
     if (src_piece == KING && !IS_CASTLE(flags)) {
@@ -591,6 +601,8 @@ void make_move(Board* board, Move* move) {
             remove_castle_queenside(board, active);
         }
     }
+
+    board->active_color = inactive;
 }
 
 void make_move_cheap(Board* board, Move* move) {
