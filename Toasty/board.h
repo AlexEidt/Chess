@@ -7,6 +7,7 @@
 
 typedef uint8_t Piece;
 
+#define EMPTY 0b000
 #define PAWN 0b001
 #define KNIGHT 0b010
 #define BISHOP 0b100
@@ -17,12 +18,14 @@ typedef uint8_t Piece;
 #define WHITE 0b000
 #define DRAW 0b001
 
-#define OPPOSITE(x) ((x) ^ BLACK)
-#define WHITE_TO_MOVE(x) (((x)->active_color) == 0)
 #define IS_SLIDING(x) ((x) & 0b100 != 0)
 
+#define OPPOSITE(x) ((x) ^ BLACK)
+#define WHITE_TO_MOVE(x) (((x)->active_color) == 0)
+#define IN_OPENING_BOOK(x) (((x)->full_moves) < 7)
+
 typedef struct {
-    uint8_t positions[64]; // Stores locations of pieces.
+    Piece positions[64]; // Stores locations of pieces.
     Bitboard state[8]; // One bitboard for each piece type and color.
     Piece active_color;
     uint8_t en_passant;

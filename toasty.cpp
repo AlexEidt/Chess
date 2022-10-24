@@ -7,6 +7,8 @@
 #define OLC_PGEX_SOUND
 #include "olcPGEX_Sound.h"
 
+#include <ctime>
+
 extern "C" {
 	#include "Toasty/board.h"
 	#include "Toasty/move.h"
@@ -40,7 +42,7 @@ private:
 	int selectedDestination;
 
 	// Moves the player can make.
-	Move moves[256];
+	Move moves[MAX_MOVES];
 
 	// Size of one square on the chess board.
 	int unit;
@@ -51,7 +53,7 @@ private:
 
 	// Flags for Pawn Promotions.
 	bool isPromotion;
-	Piece promoted;
+	Piece promoted, promotedHover;
 
 	bool gameOver;
 	Piece winner; // WHITE, BLACK, or DRAW.
@@ -121,7 +123,8 @@ public:
 		highlight = {246, 246, 105};
 
 		isPromotion = false;
-		promoted = 0;
+		promoted = EMPTY;
+		promotedHover = EMPTY;
 
 		gameOver = false;
 		winner = 0;
@@ -135,6 +138,15 @@ public:
 		DrawBoard();
 		GenerateMoves();
 
+		// std::clock_t start;
+		// uint64_t expected[] = {1, 20, 400, 8902, 197281, 4865609, 119060324};
+		// for (int i = 0; i < sizeof(expected) / sizeof(uint64_t); i++) {
+		// 	start = std::clock();
+		// 	uint64_t actual = perft(i);
+		// 	std::cout << "Time: " << (std::clock() - start) / (double)(CLOCKS_PER_SEC / 1000) << " ms" << std::endl;
+		// 	printf("Depth: %d, Expected: %d, Actual: %d\n", i, expected[i], actual);
+		// }
+
 		return true;
 	}
 
@@ -142,34 +154,29 @@ public:
 		olc::vi2d mouse = {GetMouseX(), GetMouseY()};
 		DrawPieces();
 
+		if (gameOver) {
+			DrawStringDecal({10, 10}, winner == DRAW ? "Draw" : "Checkmate", {255, 255, 255}, {5, 5});
+			return true;
+		}
+
 		// Draw selected piece at mouse position.
 		if (selectedSource != -1 && !isPromotion) {
 			Piece piece = get_piece(chessboard, selectedSource);
 			Piece color = get_color(chessboard, selectedSource);
-			if (piece != 0 && color == chessboard->active_color && !possible_moves[selectedSource].empty()) {
+			if (piece != EMPTY && color == chessboard->active_color && !possible_moves[selectedSource].empty()) {
 				olc::vf2d scale = {float(unit / pieceSize), float(unit / pieceSize)};
 				DrawDecal({float(mouse.x - unit / 2), float(mouse.y - unit / 2)}, pieces[color][piece], scale);
 			}
 		}
 
-		if (gameOver) {
-			char text[12] = "White Wins!";
-			// switch (winner) {
-			// 	case WHITE: text = "White Wins!"; break;
-			// 	case BLACK: text = "Black Wins!"; break;
-			// 	case DRAW: text = "Draw"; break;
-			// }
-			DrawStringDecal({10, 10}, text, {255, 255, 255}, {5, 5});
-			return true;
-		}
-
 		if (isPromotion) {
 			DrawPromotion();
 			// Check if piece is a Queen, Bishop, Rook or Knight.
-			if (promoted != 0) {
+			if (promoted != EMPTY) {
 				isPromotion = false;
 				HandlePromotion();
-				promoted = 0;
+				promoted = EMPTY;
+				promotedHover = EMPTY;
 			}
 			return true;
 		}
@@ -333,7 +340,14 @@ public:
 			else if (tr) promoted = ROOK;
 			else if (bl) promoted = BISHOP;
 			else if (br) promoted = KNIGHT;
+			else promoted = EMPTY;
 		}
+
+		if (tl) promotedHover = QUEEN;
+		else if (tr) promotedHover = ROOK;
+		else if (bl) promotedHover = BISHOP;
+		else if (br) promotedHover = KNIGHT;
+		else promotedHover = EMPTY;
 	}
 
 	// Draws the chess board.
@@ -353,6 +367,9 @@ public:
 	// Draw the pieces on the board.
 	void DrawPieces() {
 		olc::vf2d scale = {float(unit / pieceSize), float(unit / pieceSize)};
+		olc::Pixel tint = olc::Pixel(255, 255, 255, 255);
+		bool isValid = !possible_moves[selectedSource].empty();
+
 		for (int file = 0; file < 8; file++) {
 			for (int rank = 0; rank < 8; rank++) {
 				// If the promotion screen is up, then do not draw pieces on ranks 3-6 and files c-f
@@ -360,10 +377,16 @@ public:
 				if (isPromotion && file >= 2 && file <= 5 && rank >= 2 && rank <= 5) continue;
 				int index = file * 8 + rank;
 				Piece piece = get_piece(chessboard, index);
-				if (piece != 0 && (index != selectedSource || possible_moves[selectedSource].empty())) {
-					Piece color = get_color(chessboard, index);
-					olc::vi2d rf = Itov(index);
-					DrawDecal({float(rf.x * unit + unit), float(rf.y * unit + unit)}, pieces[color][piece], scale);
+				Piece color = get_color(chessboard, index);
+
+				tint.a = 255;
+				if ((isValid && index == selectedSource) || (index == selectedDestination && isPromotion)) tint.a = 50;
+				olc::vi2d rf = Itov(index);
+
+				if (promotedHover != EMPTY && index == selectedDestination) {
+					DrawDecal({float(rf.x * unit + unit), float(rf.y * unit + unit)}, pieces[OPPOSITE(color)][promotedHover], scale, tint);
+				} else if (piece != EMPTY) {
+					DrawDecal({float(rf.x * unit + unit), float(rf.y * unit + unit)}, pieces[color][piece], scale, tint);
 				}
 			}
 		}
@@ -389,6 +412,30 @@ public:
 			Move* move = &moves[i];
 			possible_moves[move->from].push_back(move);
 		}
+	}
+
+	uint64_t perft(int depth) {
+		Board* board = new Board();
+		board_from_fen(board, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+
+		return helper(board, depth);
+	}
+
+	uint64_t helper(Board* board, int depth) {
+		if (depth == 0) return 1ULL;
+
+		Move moves[MAX_MOVES];
+		int n_moves = gen_moves(board, moves);
+
+		Board copy = *board;
+		uint64_t nodes = 0;
+		for (int i = 0; i < n_moves; i++) {
+			make_move(board, &moves[i]);
+			nodes += helper(board, depth - 1);
+			*board = copy; // Undo move.
+		}
+
+		return nodes;
 	}
 };
 

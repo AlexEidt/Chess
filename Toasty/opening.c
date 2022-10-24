@@ -2,11 +2,10 @@
 #include <string.h>
 #include "opening.h"
 
-
 bool select_opening(Board* board, Move* move) {
-    int possible[1024];
+    int possible[1024]; // Indices of possible openings in "openings" array.
 
-    Move moves[256];
+    Move moves[MAX_MOVES];
     int n_moves = gen_moves(board, moves);
 
     uint64_t board_hash = hash(board);
@@ -34,7 +33,7 @@ bool select_opening(Board* board, Move* move) {
 
     int total = 0;
     for (int i = 0; i < n_openings; i++) {
-        total += openings[possible[i]].count;
+        total += (&openings[possible[i]])->count;
     }
 
     // Weighted random selection based on the number of times
@@ -42,10 +41,10 @@ bool select_opening(Board* board, Move* move) {
     int selection = rand() % total;
     total = 0;
     for (int i = 0; i < n_openings; i++) {
-        total += openings[possible[i]].count;
+        Opening* opening = &openings[possible[i]];
+        total += opening->count;
         if (total >= selection) {
-            *((uint32_t*) move) = *((uint32_t*) &openings[possible[i]].move);
-            // memcpy(move, &openings[possible[i]].move, sizeof(Move));
+            memcpy(move, &opening->move, sizeof(Move));
             return true;
         }
     }

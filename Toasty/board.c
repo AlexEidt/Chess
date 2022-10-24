@@ -89,7 +89,7 @@ void board_to_fen(Board* board, char* fen) {
             if (count != 0) {
                 fen[pos++] = count + '0';
             }
-            if (piece != 0) {
+            if (piece != EMPTY) {
                 Piece color = get_color(board, index);
                 fen[pos++] = " PNKBRQ"[piece] + ('a' - 'A') * (color & 1);
             }
@@ -162,18 +162,22 @@ bool equals(Board* board, Board* other) {
 // http://www.cse.yorku.ca/~oz/hash.html
 // https://stackoverflow.com/questions/7666509/hash-function-for-string
 uint64_t hash(Board *board) {
-    // uint64_t hash = 5381;
     char* ptr = (char*) board;
+    // Ignore half and full move count for hash.
+    uint8_t half_moves = board->half_moves;
+    uint8_t full_moves = board->full_moves;
+    board->half_moves = 0;
+    board->full_moves = 0;
 
-    // for (int i = 0; i < sizeof(Board); i++) {
-    //     hash = hash * 33 + ptr[i];
-    // }
     uint64_t hash = 525201411107845655ULL;
     for (int i = 0; i < sizeof(Board); i++) {
         hash ^= ptr[i];
         hash *= 0x5bd1e9955bd1e995;
         hash ^= hash >> 47;
     }
+
+    board->half_moves = half_moves;
+    board->full_moves = full_moves;
 
     return hash;
 }

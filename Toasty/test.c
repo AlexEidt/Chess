@@ -61,9 +61,15 @@ int main()
 
 // http://www.cse.yorku.ca/~oz/hash.html
 uint64_t hash(Board *board) {
-    // uint64_t hash = 5381;
     char* ptr = (char*) board;
 
+    uint8_t half_moves = board->half_moves;
+    uint8_t full_moves = board->full_moves;
+
+    board->half_moves = 0;
+    board->full_moves = 0;
+
+    // uint64_t hash = 5381;
     // for (int i = 0; i < sizeof(Board); i++) {
     //     hash = hash * 33 + ptr[i];
     // }
@@ -73,6 +79,9 @@ uint64_t hash(Board *board) {
         hash *= 0x5bd1e9955bd1e995;
         hash ^= hash >> 47;
     }
+
+    board->half_moves = half_moves;
+    board->full_moves = full_moves;
 
     return hash;
 }

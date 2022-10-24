@@ -37,10 +37,44 @@ typedef uint8_t Flag;
 #define ADD_PROMOTED_PIECE(x) ((x) << 2)
 #define PROMOTED_PIECE(x) (((x) & PROMOTION) >> 2)
 
+#define MAX_MOVES 256
+
 typedef struct {
     uint8_t to, from;
     Flag flags;
 } Move;
+
+int extract_moves_pawns(Bitboard board, int8_t offset, Move* moves, int start, Flag flag);
+int extract_moves_pawns_promotions(Bitboard board, int8_t offset, Move* moves, int start, Flag flag);
+int extract_moves(Bitboard board, int8_t offset, Move* moves, int start, Flag flag);
+
+int gen_pawn_pushes(Board* board, Move* moves, int index);
+int gen_pawn_captures(Board* board, Move* moves, int index);
+int gen_pawn_promotions_quiets(Board* board, Move* moves, int index);
+int gen_pawn_promotions_captures(Board* board, Move* moves, int index);
+int gen_pawn_en_passant(Board* board, Move* moves, int index);
+
+int gen_knight_moves(Board* board, Move* moves, int index, bool captures_only);
+int gen_king_moves(Board* board, Move* moves, int index, bool captures_only);
+int gen_rook_moves(Board* board, Move* moves, int index, bool captures_only);
+int gen_bishop_moves(Board* board, Move* moves, int index, bool captures_only);
+int gen_queen_moves(Board* board, Move* moves, int index, bool captures_only);
+
+int gen_castle_moves(Board* board, Move* moves, int index);
+
+int gen_cardinal_moves(Board* board, Move* moves, int index, Piece piece, bool captures_only);
+int gen_intercardinal_moves(Board* board, Move* moves, int index, Piece piece, bool captures_only);
+
+Bitboard gen_cardinal_attacks(Board* board, Piece piece);
+Bitboard gen_intercardinal_attacks(Board* board, Piece piece);
+Bitboard gen_attacks(Board* board);
+
+int gen_moves(Board* board, Move* moves);
+int gen_captures(Board* board, Move* moves);
+int filter_legal(Board* board, Move* moves, int size);
+
+void make_move(Board* board, Move* move);
+void make_move_cheap(Board* board, Move* move);
 
 // All possible king moves for each square.
 const Bitboard king_moves[64] = {
@@ -368,35 +402,5 @@ const Bitboard castling[2][6] = {
     {0x6ULL, 0x30ULL, 0x70ULL, E1, G1, C1}, // White
     {0x600000000000000ULL, 0x3000000000000000ULL, 0x7000000000000000ULL, E8, G8, C8} // Black
 };
-
-int extract_moves_pawns(Bitboard board, int8_t offset, Move* moves, int start, Flag flag);
-int extract_moves_pawns_promotions(Bitboard board, int8_t offset, Move* moves, int start, Flag flag);
-int extract_moves(Bitboard board, int8_t offset, Move* moves, int start, Flag flag);
-
-int gen_pawn_pushes(Board* board, Move* moves, int index);
-int gen_pawn_captures(Board* board, Move* moves, int index);
-int gen_pawn_promotions_quiets(Board* board, Move* moves, int index);
-int gen_pawn_promotions_captures(Board* board, Move* moves, int index);
-int gen_pawn_en_passant(Board* board, Move* moves, int index);
-
-int gen_knight_moves(Board* board, Move* moves, int index);
-int gen_king_moves(Board* board, Move* moves, int index);
-int gen_rook_moves(Board* board, Move* moves, int index);
-int gen_bishop_moves(Board* board, Move* moves, int index);
-int gen_queen_moves(Board* board, Move* moves, int index);
-
-int gen_castle_moves(Board* board, Move* moves, int index);
-
-int gen_cardinal_moves(Board* board, Move* moves, int index, Piece piece);
-int gen_intercardinal_moves(Board* board, Move* moves, int index, Piece piece);
-
-Bitboard gen_cardinal_attacks(Board* board, Piece piece);
-Bitboard gen_intercardinal_attacks(Board* board, Piece piece);
-Bitboard gen_attacks(Board* board);
-
-int gen_moves(Board* board, Move* moves);
-
-void make_move(Board* board, Move* move);
-void make_move_cheap(Board* board, Move* move);
 
 #endif
