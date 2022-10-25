@@ -22,7 +22,7 @@ typedef uint8_t Piece;
 
 #define OPPOSITE(x) ((x) ^ BLACK)
 #define WHITE_TO_MOVE(x) (((x)->active_color) == 0)
-#define IN_OPENING_BOOK(x) (((x)->full_moves) < 7)
+#define IN_OPENING_BOOK(x) (((x)->full_moves) < 5)
 
 typedef struct {
     Piece positions[64]; // Stores locations of pieces.
@@ -40,7 +40,6 @@ void board_to_fen(Board* board, char* fen);
 void switch_ply(Board* board);
 
 void clear(Board* board);
-bool equals(Board* board, Board* other);
 uint64_t hash(Board* board);
 
 Piece get_piece(Board* board, uint8_t index);

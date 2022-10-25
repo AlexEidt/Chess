@@ -81,8 +81,7 @@ void board_to_fen(Board* board, char* fen) {
         for (int file = 7; file >= 0; file--) {
             int index = rank * 8 + file;
             Piece piece = get_piece(board, index);
-            if (piece == 0) {
-                file--;
+            if (piece == EMPTY) {
                 count++;
                 continue;
             }
@@ -152,11 +151,6 @@ void switch_ply(Board* board) {
 
 void clear(Board* board) {
     memset(board, 0, sizeof(Board));
-}
-
-bool equals(Board* board, Board* other) {
-    // Can use memcmp because every board is cleared using memset 0.
-    return memcmp(board, other, sizeof(Board)) == 0;
 }
 
 // http://www.cse.yorku.ca/~oz/hash.html

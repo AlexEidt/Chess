@@ -3,10 +3,31 @@
 
 #include "board.h"
 
+#define ABS(x) (__builtin_abs(x))
+
+#define PAWN_VALUE 100
+#define KNIGHT_VALUE 350
+#define BISHOP_VALUE 350
+#define ROOK_VALUE 525
+#define QUEEN_VALUE 1000
+#define KING_VALUE 20000
+
+#define TOTAL_VALUE 4250
+
+#define BISHOP_BONUS (BISHOP_VALUE / 2)
+#define KING_QUADRANT_BONUS 50
+
+extern const int PST[7][64];
+extern const int KING_ENDGAME_PST[64];
+extern const Bitboard QUADRANT[64];
+
 int evaluate(Board* board);
 
-int evaluate_pawns(Board* board, Piece color);
-int piece_square_eval(Board* board);
-int mop_up_eval(Board* board);
+int material_eval(Board* board, Piece color);
+int pawn_structure_eval(Board* board, Piece color);
+int piece_square_eval(Board* board, Piece color);
+int pst(Piece piece, Piece color, int index, int color_flag);
+int king_safety_eval(Board* board, Piece color);
+int mop_up_eval(Board* board, int material, Piece color);
 
 #endif

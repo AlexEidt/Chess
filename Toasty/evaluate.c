@@ -2,22 +2,207 @@
 #include "bitboard.h"
 
 int evaluate(Board* board) {
-    // Material Count
-    // Two Pawns in the same file
-    // Piece square tables
+    Piece active = board->active_color;
+    Piece inactive = OPPOSITE(board->active_color);
+    int active_score = 0;
 
-    // Mop up Evaluation for Endgame
+    int material = material_eval(board, active);
+    active_score += material;
+    active_score -= pawn_structure_eval(board, active);
+    active_score += piece_square_eval(board, active);
+    active_score += king_safety_eval(board, active);
+    active_score += mop_up_eval(board, material, active);
+
+    int inactive_score = 0;
+
+    material = material_eval(board, inactive);
+    inactive_score += material;
+    inactive_score -= pawn_structure_eval(board, inactive);
+    inactive_score += piece_square_eval(board, inactive);
+    inactive_score += king_safety_eval(board, inactive);
+    inactive_score += mop_up_eval(board, material, inactive);
+
+    return active_score - inactive_score;
 }
 
-int evaluate_pawns(Board* board, Piece color) {
-    Bitboard pawns = get_pieces(board, PAWN, color);
+int material_eval(Board* board, Piece color) {
     int score = 0;
+
+    score += COUNT(get_pieces(board, PAWN, color)) * PAWN_VALUE;
+    score += COUNT(get_pieces(board, KNIGHT, color)) * KNIGHT_VALUE;
+    score += COUNT(get_pieces(board, ROOK, color)) * ROOK_VALUE;
+    score += COUNT(get_pieces(board, QUEEN, color)) * QUEEN_VALUE;
+
+    int n_bishops = COUNT(get_pieces(board, BISHOP, color));
+    score += n_bishops * BISHOP_VALUE;
+    // If the player still has both of their bishops, they get a bonus.
+    score += (n_bishops == 2) * BISHOP_BONUS;
+
+    return score;
 }
 
-int piece_square_eval(Board* board) {
+int pawn_structure_eval(Board* board, Piece color) {
+    Bitboard pawns = get_pieces(board, PAWN, color);
 
+    int files[10] = {
+        0,
+        COUNT(pawns & FILEA),
+        COUNT(pawns & FILEB),
+        COUNT(pawns & FILEC),
+        COUNT(pawns & FILED),
+        COUNT(pawns & FILEE),
+        COUNT(pawns & FILEF),
+        COUNT(pawns & FILEG),
+        COUNT(pawns & FILEH),
+        0
+    };
+
+    int stacked = 0;
+    int isolated = 0;
+    for (int i = 1; i < sizeof(files) / sizeof(int) - 1; i++) {
+        stacked += files[i] > 1;
+        isolated += (files[i - 1] == 0) & (files[i + 1] == 0);
+    }
+
+    stacked *= PAWN_VALUE;
+    isolated *= 2 * PAWN_VALUE;
+
+    return stacked + isolated;
 }
 
-int mop_up_eval(Board* board) {
-
+int piece_square_eval(Board* board, Piece color) {
+    int score = 0;
+    for (int i = 0; i < 64; i++) {
+        Piece current = get_color(board, i);
+        score += pst(board->positions[i], current, i, ~(current ^ color) & 1);
+    }
+    return score;
 }
+
+int pst(Piece piece, Piece color, int index, int color_flag) {
+    int si = color == WHITE ? index : 63 - index;
+    return PST[piece][si] * color_flag;
+}
+
+int king_safety_eval(Board* board, Piece color) {
+    Bitboard us = get_pieces_color(board, color);
+    Bitboard enemies = get_pieces_color(board, OPPOSITE(color));
+
+    int pos = LSB(get_pieces(board, KING, color));
+    // Find the difference in the number of friendly/enemy pieces in the kings quadrant.
+    int qdiff = COUNT(QUADRANT[pos] & us) - COUNT(QUADRANT[pos] & enemies);
+
+    return qdiff * KING_QUADRANT_BONUS;
+}
+
+int mop_up_eval(Board* board, int material, Piece color) {
+    int our_king = LSB(get_pieces(board, KING, color));
+    int enemy_king = LSB(get_pieces(board, KING, OPPOSITE(color)));
+    // Prefer when opponent king is forced into corners.
+    int score = -KING_ENDGAME_PST[enemy_king] * 2;
+
+    // Minimize the distance between kings.
+    int rankDistance = ABS((enemy_king - our_king) / 8);
+    int fileDistance = ABS((enemy_king & 7) - (our_king & 7));
+    score += (14 - (rankDistance + fileDistance)) * 10;
+
+    double endgame = (double) (TOTAL_VALUE - material) / (double) TOTAL_VALUE;
+
+    return (int)((double) score * endgame);
+}
+
+// Piece Square Tables.
+const int PST[7][64] = {
+    { // Empty
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0
+    },
+    { // Pawns
+        0,  0,  0,  0,  0,  0,  0,  0,
+        50, 50, 50, 50, 50, 50, 50, 50,
+        10, 10, 20, 30, 30, 20, 10, 10,
+        5,  5, 10, 25, 25, 10,  5,  5,
+        0,  0,  0, 20, 20,  0,  0,  0,
+        5, -5,-10,  0,  0,-10, -5,  5,
+        5, 10, 10,-20,-20, 10, 10,  5,
+        0,  0,  0,  0,  0,  0,  0,  0
+    },
+    { // Knights
+        -50,-40,-30,-30,-30,-30,-40,-50,
+        -40,-20,  0,  0,  0,  0,-20,-40,
+        -30,  0, 10, 15, 15, 10,  0,-30,
+        -30,  5, 15, 20, 20, 15,  5,-30,
+        -30,  0, 15, 20, 20, 15,  0,-30,
+        -30,  5, 10, 15, 15, 10,  5,-30,
+        -40,-20,  0,  5,  5,  0,-20,-40,
+        -50,-40,-30,-30,-30,-30,-40,-50,
+    },
+    { // King Middle Game
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -20,-30,-30,-40,-40,-30,-30,-20,
+        -10,-20,-20,-20,-20,-20,-20,-10,
+        20, 20,  0,  0,  0,  0, 20, 20,
+        20, 30, 10,  0,  0, 10, 30, 20
+    },
+    { // Bishops
+        -20,-10,-10,-10,-10,-10,-10,-20,
+        -10,  0,  0,  0,  0,  0,  0,-10,
+        -10,  0,  5, 10, 10,  5,  0,-10,
+        -10,  5,  5, 10, 10,  5,  5,-10,
+        -10,  0, 10, 10, 10, 10,  0,-10,
+        -10, 10, 10, 10, 10, 10, 10,-10,
+        -10,  5,  0,  0,  0,  0,  5,-10,
+        -20,-10,-10,-10,-10,-10,-10,-20,
+    },
+    { // Rooks
+        0,  0,  0,  0,  0,  0,  0,  0,
+        5, 10, 10, 10, 10, 10, 10,  5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        0,  0,  0,  5,  5,  0,  0,  0
+    },
+    { // Queens
+        -20,-10,-10, -5, -5,-10,-10,-20,
+        -10,  0,  0,  0,  0,  0,  0,-10,
+        -10,  0,  5,  5,  5,  5,  0,-10,
+        -5,  0,  5,  5,  5,  5,  0, -5,
+        -5,  0,  5,  5,  5,  5,  0, -5,
+        -10,  5,  5,  5,  5,  5,  0,-10,
+        -10,  0,  5,  0,  0,  0,  0,-10,
+        -20,-10,-10, -5, -5,-10,-10,-20
+    }
+};
+
+const int KING_ENDGAME_PST[64] = {
+    -50,-40,-30,-20,-20,-30,-40,-50,
+    -30,-20,-10,  0,  0,-10,-20,-30,
+    -30,-10, 20, 30, 30, 20,-10,-30,
+    -30,-10, 30, 40, 40, 30,-10,-30,
+    -30,-10, 30, 40, 40, 30,-10,-30,
+    -30,-10, 20, 30, 30, 20,-10,-30,
+    -30,-30,  0,  0,  0,  0,-30,-30,
+    -50,-30,-30,-30,-30,-30,-30,-50
+};
+
+const Bitboard QUADRANT[64] = {
+    Q1, Q1, Q1, Q1, Q2, Q2, Q2, Q2,
+    Q1, Q1, Q1, Q1, Q2, Q2, Q2, Q2,
+    Q1, Q1, Q1, Q1, Q2, Q2, Q2, Q2,
+    Q1, Q1, Q1, Q1, Q2, Q2, Q2, Q2,
+    Q3, Q3, Q3, Q3, Q4, Q4, Q4, Q4,
+    Q3, Q3, Q3, Q3, Q4, Q4, Q4, Q4,
+    Q3, Q3, Q3, Q3, Q4, Q4, Q4, Q4,
+    Q3, Q3, Q3, Q3, Q4, Q4, Q4, Q4
+};

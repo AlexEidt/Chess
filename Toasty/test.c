@@ -6,7 +6,7 @@
 
 int main()
 {
-    FILE* file = fopen("t.txt", "r");
+    FILE* file = fopen("fens.txt", "r");
     FILE* boards = fopen("board.txt", "w");
     FILE* moves = fopen("moves.txt", "w");
     char line[1024];
