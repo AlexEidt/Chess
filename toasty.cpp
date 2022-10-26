@@ -7,8 +7,6 @@
 #define OLC_PGEX_SOUND
 #include "olcPGEX_Sound.h"
 
-#include <ctime>
-
 extern "C" {
 	#include "Toasty/board.h"
 	#include "Toasty/move.h"
@@ -383,11 +381,15 @@ public:
 				if ((isValid && index == selectedSource) || (index == selectedDestination && isPromotion)) tint.a = 50;
 				olc::vi2d rf = Itov(index);
 
+				olc::Decal* sprite;
 				if (promotedHover != EMPTY && index == selectedDestination) {
-					DrawDecal({float(rf.x * unit + unit), float(rf.y * unit + unit)}, pieces[OPPOSITE(color)][promotedHover], scale, tint);
+					sprite = pieces[get_color(chessboard, selectedSource)][promotedHover];
 				} else if (piece != EMPTY) {
-					DrawDecal({float(rf.x * unit + unit), float(rf.y * unit + unit)}, pieces[color][piece], scale, tint);
+					sprite = pieces[color][piece];
+				} else {
+					continue;
 				}
+				DrawDecal({float(rf.x * unit + unit), float(rf.y * unit + unit)}, sprite, scale, tint);
 			}
 		}
 	}

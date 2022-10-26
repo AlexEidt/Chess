@@ -1,10 +1,28 @@
 #include <string.h>
+#include "bitboard.h"
+#include "board.h"
 #include "move.h"
+#include "evaluate.h"
+
+int score_move(Board* board, Move* move) {
+    Piece src = board->positions[move->from];
+    Piece dst = board->positions[move->to];
+
+    int score = 0;
+    // Promotions.
+    score += PIECE_VALUES[PROMOTED_PIECE(move->flags)] * PROMOTION_BONUS;
+    // Piece Square Table evaluation.
+    score += PST[src][move->to] - PST[src][move->from];
+    // Captures.
+    score += (PIECE_VALUES[dst] - PIECE_VALUES[src]) * IS_CAPTURE(move->flags) * CAPTURE_BONUS;
+
+    return score;
+}
 
 int extract_moves_pawns(Bitboard board, int8_t offset, Move* moves, int start, Flag flag) {
     while (board != 0) {
         int pos = LSB(board);
-        CLEAR_BIT(board, pos);
+        board &= board - 1;
         Move* move = &moves[start++];
         move->to = pos; move->from = pos - offset; move->flags = flag;
     }
@@ -15,7 +33,7 @@ int extract_moves_pawns(Bitboard board, int8_t offset, Move* moves, int start, F
 int extract_moves_pawns_promotions(Bitboard board, int8_t offset, Move* moves, int start, Flag flag) {
     while (board != 0) {
         int pos = LSB(board);
-        CLEAR_BIT(board, pos);
+        board &= board - 1;
         Move* move;
         move = &moves[start++];
         move->to = pos; move->from = pos - offset; move->flags = ADD_PROMOTED_PIECE(QUEEN) | flag;
@@ -139,7 +157,7 @@ int gen_pawn_en_passant(Board* board, Move* moves, int index) {
 int extract_moves(Bitboard board, int8_t init, Move* moves, int start, Flag flag) {
     while (board != 0) {
         int pos = LSB(board);
-        CLEAR_BIT(board, pos);
+        board &= board - 1;
         Move* move = &moves[start++];
         move->to = pos; move->from = init; move->flags = flag;
     }
@@ -154,7 +172,7 @@ int gen_knight_moves(Board* board, Move* moves, int index, bool captures_only) {
 
     while (knights != 0) {
         int pos = LSB(knights);
-        CLEAR_BIT(knights, pos);
+        knights &= knights - 1;
         if (!captures_only) {
             index = extract_moves(KNIGHT_MOVES[pos] & empty, pos, moves, index, QUIET);
         }
@@ -178,71 +196,22 @@ int gen_king_moves(Board* board, Move* moves, int index, bool captures_only) {
     return index;
 }
 
-int gen_rook_moves(Board* board, Move* moves, int index, bool captures_only) {
-    return gen_cardinal_moves(board, moves, index, ROOK, captures_only);
-}
-
-int gen_bishop_moves(Board* board, Move* moves, int index, bool captures_only) {
-    return gen_intercardinal_moves(board, moves, index, BISHOP, captures_only);
-}
-
-int gen_queen_moves(Board* board, Move* moves, int index, bool captures_only) {
-    index = gen_cardinal_moves(board, moves, index, QUEEN, captures_only);
-    index = gen_intercardinal_moves(board, moves, index, QUEEN, captures_only);
-    return index;
-}
-
-int gen_castle_moves(Board* board, Move* moves, int index) {
-    switch_ply(board);
-    Bitboard attacks = gen_attacks(board);
-    switch_ply(board);
-
-    Bitboard king = get_pieces(board, KING, board->active_color);
-    if ((king & attacks) == 0) { // If king is not in check.
-        uint8_t color = board->active_color & 1; // Maps White to 0, Black to 1.
-        Bitboard kingside = CASTLING[color][KINGSIDE_PATH];
-        Bitboard queenside = CASTLING[color][QUEENSIDE_PATH];
-        Bitboard queenside_path_rook = CASTLING[color][QUEENSIDE_PATH_TO_ROOK];
-        Bitboard king_pos = CASTLING[color][KING_POSITION];
-        Bitboard king_dst_kingside = CASTLING[color][KING_DST_KINGSIDE];
-        Bitboard king_dst_queenside = CASTLING[color][KING_DST_QUEENSIDE];
-
-        Bitboard us = get_pieces_color(board, board->active_color);
-        Bitboard enemies = get_pieces_color(board, OPPOSITE(board->active_color));
-
-        if (can_castle_kingside(board, board->active_color)) {
-            if ((kingside & (attacks | us | enemies)) == 0) {
-                Move* move = &moves[index++];
-                move->to = king_dst_kingside; move->from = king_pos; move->flags = CASTLE_KINGSIDE;
-            }
-        }
-        if (can_castle_queenside(board, board->active_color)) {
-            if ((queenside & (attacks | us | enemies)) == 0 && (queenside_path_rook & (us | enemies)) == 0) {
-                Move* move = &moves[index++];
-                move->to = king_dst_queenside; move->from = king_pos; move->flags = CASTLE_QUEENSIDE;
-            }
-        }
-    }
-
-    return index;
-}
-
-int gen_cardinal_moves(Board* board, Move* moves, int index, Piece piece, bool captures_only) {
+int gen_cardinal_moves(Board* board, Move* moves, int index, bool captures_only) {
     Piece color = board->active_color;
-    Bitboard cardinal = get_pieces(board, piece, color);
+    Bitboard cardinal = get_pieces(board, ROOK, color) | get_pieces(board, QUEEN, color);
     Bitboard us = get_pieces_color(board, color);
     Bitboard enemies = get_pieces_color(board, OPPOSITE(color));
     Bitboard empty = ~get_all_pieces(board);
 
     while (cardinal != 0) {
         int pos = LSB(cardinal);
-        CLEAR_BIT(cardinal, pos);
+        cardinal &= cardinal - 1;
 
         Bitboard current = 1ULL << pos;
+        Bitboard result = 0;
 
         int ai, qi;
         Bitboard ray, ray_us, ray_enemies;
-        Bitboard result = 0;
     
         ray = ROOK_MOVES[pos][NORTH];
         ray_enemies = ray & enemies;
@@ -285,22 +254,22 @@ int gen_cardinal_moves(Board* board, Move* moves, int index, Piece piece, bool c
     return index;
 }
 
-int gen_intercardinal_moves(Board* board, Move* moves, int index, Piece piece, bool captures_only) {
+int gen_intercardinal_moves(Board* board, Move* moves, int index, bool captures_only) {
     Piece color = board->active_color;
-    Bitboard intercardinal = get_pieces(board, piece, color);
+    Bitboard intercardinal = get_pieces(board, BISHOP, color) | get_pieces(board, QUEEN, color);
     Bitboard us = get_pieces_color(board, color);
     Bitboard enemies = get_pieces_color(board, OPPOSITE(color));
     Bitboard empty = ~get_all_pieces(board);
 
     while (intercardinal != 0) {
         int pos = LSB(intercardinal);
-        CLEAR_BIT(intercardinal, pos);
+        intercardinal &= intercardinal - 1;
 
         Bitboard current = 1ULL << pos;
+        Bitboard result = 0;
 
         int ai, qi;
         Bitboard ray, ray_enemies, ray_us;
-        Bitboard result = 0;
 
         ray = BISHOP_MOVES[pos][SOUTHEAST];
         ray_enemies = ray & enemies;
@@ -343,17 +312,52 @@ int gen_intercardinal_moves(Board* board, Move* moves, int index, Piece piece, b
     return index;
 }
 
-Bitboard gen_cardinal_attacks(Board* board, Piece piece) {
+int gen_castle_moves(Board* board, Move* moves, int index) {
+    switch_ply(board);
+    Bitboard attacks = gen_attacks(board);
+    switch_ply(board);
+
+    Bitboard king = get_pieces(board, KING, board->active_color);
+    if ((king & attacks) == 0) { // If king is not in check.
+        uint8_t color = board->active_color & 1; // Maps White to 0, Black to 1.
+        Bitboard kingside = CASTLING[color][KINGSIDE_PATH];
+        Bitboard queenside = CASTLING[color][QUEENSIDE_PATH];
+        Bitboard queenside_path_rook = CASTLING[color][QUEENSIDE_PATH_TO_ROOK];
+        Bitboard king_pos = CASTLING[color][KING_POSITION];
+        Bitboard king_dst_kingside = CASTLING[color][KING_DST_KINGSIDE];
+        Bitboard king_dst_queenside = CASTLING[color][KING_DST_QUEENSIDE];
+
+        Bitboard us = get_pieces_color(board, board->active_color);
+        Bitboard enemies = get_pieces_color(board, OPPOSITE(board->active_color));
+
+        if (can_castle_kingside(board, board->active_color)) {
+            if ((kingside & (attacks | us | enemies)) == 0) {
+                Move* move = &moves[index++];
+                move->to = king_dst_kingside; move->from = king_pos; move->flags = CASTLE_KINGSIDE;
+            }
+        }
+        if (can_castle_queenside(board, board->active_color)) {
+            if ((queenside & (attacks | us | enemies)) == 0 && (queenside_path_rook & (us | enemies)) == 0) {
+                Move* move = &moves[index++];
+                move->to = king_dst_queenside; move->from = king_pos; move->flags = CASTLE_QUEENSIDE;
+            }
+        }
+    }
+
+    return index;
+}
+
+Bitboard gen_cardinal_attacks(Board* board) {
     Bitboard attacks = 0;
 
     Piece color = board->active_color;
-    Bitboard cardinal = get_pieces(board, piece, color);
+    Bitboard cardinal = get_pieces(board, ROOK, color) | get_pieces(board, QUEEN, color);
     Bitboard us = get_pieces_color(board, color);
     Bitboard enemies = get_pieces_color(board, OPPOSITE(color));
 
     while (cardinal != 0) {
         int pos = LSB(cardinal);
-        CLEAR_BIT(cardinal, pos);
+        cardinal &= cardinal - 1;
 
         Bitboard current = 1ULL << pos;
 
@@ -396,17 +400,17 @@ Bitboard gen_cardinal_attacks(Board* board, Piece piece) {
     return attacks;
 }
 
-Bitboard gen_intercardinal_attacks(Board* board, Piece piece) {
+Bitboard gen_intercardinal_attacks(Board* board) {
     Bitboard attacks = 0;
 
     Piece color = board->active_color;
-    Bitboard intercardinal = get_pieces(board, piece, color);
+    Bitboard intercardinal = get_pieces(board, BISHOP, color) | get_pieces(board, QUEEN, color);
     Bitboard us = get_pieces_color(board, color);
     Bitboard enemies = get_pieces_color(board, OPPOSITE(color));
 
     while (intercardinal != 0) {
         int pos = LSB(intercardinal);
-        CLEAR_BIT(intercardinal, pos);
+        intercardinal &= intercardinal - 1;
 
         Bitboard current = 1ULL << pos;
 
@@ -470,7 +474,7 @@ Bitboard gen_attacks(Board* board) {
     Bitboard knights = get_pieces(board, KNIGHT, active);
     while (knights != 0) {
         int pos = LSB(knights);
-        CLEAR_BIT(knights, pos);
+        knights &= knights - 1;
         attacks |= KNIGHT_MOVES[pos];
     }
 
@@ -479,10 +483,8 @@ Bitboard gen_attacks(Board* board) {
     attacks |= KING_MOVES[LSB(king)];
 
     // Sliding Attacks.
-    attacks |= gen_cardinal_attacks(board, ROOK);
-    attacks |= gen_intercardinal_attacks(board, BISHOP);
-    attacks |= gen_cardinal_attacks(board, QUEEN);
-    attacks |= gen_intercardinal_attacks(board, QUEEN);
+    attacks |= gen_cardinal_attacks(board);
+    attacks |= gen_intercardinal_attacks(board);
     
     return attacks;
 }
@@ -490,19 +492,21 @@ Bitboard gen_attacks(Board* board) {
 int gen_moves(Board* board, Move* moves) {
     int index = 0;
 
-    index = gen_pawn_pushes(board, moves, index);
-    index = gen_pawn_captures(board, moves, index);
     index = gen_pawn_promotions_quiets(board, moves, index);
     index = gen_pawn_promotions_captures(board, moves, index);
-    index = gen_pawn_en_passant(board, moves, index);
+    index = gen_pawn_captures(board, moves, index);
 
     index = gen_knight_moves(board, moves, index, false);
+    index = gen_cardinal_moves(board, moves, index, false);
+    index = gen_intercardinal_moves(board, moves, index, false);
     index = gen_king_moves(board, moves, index, false);
-    index = gen_rook_moves(board, moves, index, false);
-    index = gen_bishop_moves(board, moves, index, false);
-    index = gen_queen_moves(board, moves, index, false);
 
-    index = gen_castle_moves(board, moves, index);
+    index = gen_pawn_pushes(board, moves, index);
+    index = gen_pawn_en_passant(board, moves, index);
+
+    if (can_castle_color(board, board->active_color)) {
+        index = gen_castle_moves(board, moves, index);
+    }
 
     return filter_legal(board, moves, index);
 }
@@ -510,15 +514,15 @@ int gen_moves(Board* board, Move* moves) {
 int gen_captures(Board* board, Move* moves) {
     int index = 0;
 
-    index = gen_pawn_captures(board, moves, index);
     index = gen_pawn_promotions_captures(board, moves, index);
-    index = gen_pawn_en_passant(board, moves, index);
+    index = gen_pawn_captures(board, moves, index);
 
     index = gen_knight_moves(board, moves, index, true);
+    index = gen_cardinal_moves(board, moves, index, true);
+    index = gen_intercardinal_moves(board, moves, index, true);
     index = gen_king_moves(board, moves, index, true);
-    index = gen_rook_moves(board, moves, index, true);
-    index = gen_bishop_moves(board, moves, index, true);
-    index = gen_queen_moves(board, moves, index, true);
+
+    index = gen_pawn_en_passant(board, moves, index);
 
     return filter_legal(board, moves, index);
 }
@@ -665,39 +669,17 @@ void make_move_cheap(Board* board, Move* move) {
 
     remove_piece(board, src_piece, active, src);
 
-    if (IS_PROMOTION(flags)) {
-        // If the flag is a promotion, the top 3 bits contain the piece promoted.
-        add_piece(board, PROMOTED_PIECE(flags), active, dst);
-    } else {
-        add_piece(board, src_piece, active, dst);
-    }
-
-    if (IS_DOUBLE_PUSH(flags)) {
-        int8_t offset = WHITE_TO_MOVE(board) ? -8 : 8;
-        board->en_passant = dst + offset;
-    } else {
-        // If the right to capture en passant is not exercised immediately, it is subsequently lost.
-        board->en_passant = 0;
-    }
+    add_piece(board, IS_PROMOTION(flags) ? PROMOTED_PIECE(flags) : src_piece, active, dst);
 
     // If the move was a castle, move the rook to the corresponding position.
     if (IS_CASTLE(flags)) {
-        if (IS_CASTLE_KINGSIDE(flags)) {
-            if (WHITE_TO_MOVE(board)) {
-                remove_piece(board, ROOK, active, H1);
-                add_piece(board, ROOK, active, F1);
-            } else {
-                remove_piece(board, ROOK, active, H8);
-                add_piece(board, ROOK, active, F8);
-            }
-        } else if (IS_CASTLE_QUEENSIDE(flags)) {
-            if (WHITE_TO_MOVE(board)) {
-                remove_piece(board, ROOK, active, A1);
-                add_piece(board, ROOK, active, D1);
-            } else {
-                remove_piece(board, ROOK, active, A8);
-                add_piece(board, ROOK, active, D8);
-            }
+        bool is_castle_kingside = IS_CASTLE_KINGSIDE(flags);
+        if (WHITE_TO_MOVE(board)) {
+            remove_piece(board, ROOK, active, is_castle_kingside ? H1 : A1);
+            add_piece(board, ROOK, active, is_castle_kingside ? F1 : D1);
+        } else {
+            remove_piece(board, ROOK, active, is_castle_kingside ? H8 : A8);
+            add_piece(board, ROOK, active, is_castle_kingside ? F8 : D8);
         }
     }
 }

@@ -1,4 +1,5 @@
 #include <string.h>
+#include "bitboard.h"
 #include "board.h"
 
 void board_from_fen(Board* board, const char* fen) {

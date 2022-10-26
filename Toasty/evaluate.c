@@ -1,28 +1,26 @@
 #include "evaluate.h"
 #include "bitboard.h"
+#include "board.h"
 
 int evaluate(Board* board) {
     Piece active = board->active_color;
     Piece inactive = OPPOSITE(board->active_color);
-    int active_score = 0;
+    int score = 0;
 
     int material = material_eval(board, active);
-    active_score += material;
-    active_score -= pawn_structure_eval(board, active);
-    active_score += piece_square_eval(board, active);
-    active_score += king_safety_eval(board, active);
-    active_score += mop_up_eval(board, material, active);
-
-    int inactive_score = 0;
+    score += material;
+    score += mop_up_eval(board, material, active);
+    score -= pawn_structure_eval(board, active);
+    score += piece_square_eval(board, active);
+    score += king_safety_eval(board, active);
 
     material = material_eval(board, inactive);
-    inactive_score += material;
-    inactive_score -= pawn_structure_eval(board, inactive);
-    inactive_score += piece_square_eval(board, inactive);
-    inactive_score += king_safety_eval(board, inactive);
-    inactive_score += mop_up_eval(board, material, inactive);
+    score -= material;
+    score += pawn_structure_eval(board, inactive);
+    score -= piece_square_eval(board, inactive);
+    score -= king_safety_eval(board, inactive);
 
-    return active_score - inactive_score;
+    return active == WHITE ? score : -score;
 }
 
 int material_eval(Board* board, Piece color) {
@@ -99,17 +97,28 @@ int mop_up_eval(Board* board, int material, Piece color) {
     int our_king = LSB(get_pieces(board, KING, color));
     int enemy_king = LSB(get_pieces(board, KING, OPPOSITE(color)));
     // Prefer when opponent king is forced into corners.
-    int score = -KING_ENDGAME_PST[enemy_king] * 2;
+    int score = 0;
+    score += (KING_ENDGAME_PST[our_king] - KING_ENDGAME_PST[enemy_king]) * KING_CORNER_BONUS;
 
     // Minimize the distance between kings.
     int rankDistance = ABS((enemy_king - our_king) / 8);
     int fileDistance = ABS((enemy_king & 7) - (our_king & 7));
-    score += (14 - (rankDistance + fileDistance)) * 10;
+    score += (14 - (rankDistance + fileDistance)) * KING_DISTANCE_BONUS;
 
     double endgame = (double) (TOTAL_VALUE - material) / (double) TOTAL_VALUE;
 
     return (int)((double) score * endgame);
 }
+
+const int PIECE_VALUES[7] = {
+    0,
+    PAWN_VALUE,
+    KNIGHT_VALUE,
+    KING_VALUE,
+    BISHOP_VALUE,
+    ROOK_VALUE,
+    QUEEN_VALUE
+};
 
 // Piece Square Tables.
 const int PST[7][64] = {

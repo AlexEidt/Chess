@@ -1,6 +1,7 @@
 #ifndef EVALUATE_H_
 #define EVALUATE_H_
 
+#include "bitboard.h"
 #include "board.h"
 
 #define ABS(x) (__builtin_abs(x))
@@ -15,8 +16,14 @@
 #define TOTAL_VALUE 4250
 
 #define BISHOP_BONUS (BISHOP_VALUE / 2)
-#define KING_QUADRANT_BONUS 50
+#define KING_QUADRANT_BONUS 64
+#define KING_CORNER_BONUS 8
+#define KING_DISTANCE_BONUS 8
 
+#define PROMOTION_BONUS 32768
+#define CAPTURE_BONUS 16
+
+extern const int PIECE_VALUES[7];
 extern const int PST[7][64];
 extern const int KING_ENDGAME_PST[64];
 extern const Bitboard QUADRANT[64];

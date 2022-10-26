@@ -63,6 +63,8 @@ extern const Bitboard ROOK_MOVES[65][4];
 extern const Bitboard BISHOP_MOVES[65][4];
 extern const Bitboard CASTLING[2][6];
 
+int score_move(Board* board, Move* move);
+
 int extract_moves_pawns(Bitboard board, int8_t offset, Move* moves, int start, Flag flag);
 int extract_moves_pawns_promotions(Bitboard board, int8_t offset, Move* moves, int start, Flag flag);
 int extract_moves(Bitboard board, int8_t offset, Move* moves, int start, Flag flag);
@@ -75,17 +77,14 @@ int gen_pawn_en_passant(Board* board, Move* moves, int index);
 
 int gen_knight_moves(Board* board, Move* moves, int index, bool captures_only);
 int gen_king_moves(Board* board, Move* moves, int index, bool captures_only);
-int gen_rook_moves(Board* board, Move* moves, int index, bool captures_only);
-int gen_bishop_moves(Board* board, Move* moves, int index, bool captures_only);
-int gen_queen_moves(Board* board, Move* moves, int index, bool captures_only);
+// Rook, Bishop and Queen moves.
+int gen_cardinal_moves(Board* board, Move* moves, int index, bool captures_only);
+int gen_intercardinal_moves(Board* board, Move* moves, int index, bool captures_only);
 
 int gen_castle_moves(Board* board, Move* moves, int index);
 
-int gen_cardinal_moves(Board* board, Move* moves, int index, Piece piece, bool captures_only);
-int gen_intercardinal_moves(Board* board, Move* moves, int index, Piece piece, bool captures_only);
-
-Bitboard gen_cardinal_attacks(Board* board, Piece piece);
-Bitboard gen_intercardinal_attacks(Board* board, Piece piece);
+Bitboard gen_cardinal_attacks(Board* board);
+Bitboard gen_intercardinal_attacks(Board* board);
 Bitboard gen_attacks(Board* board);
 
 int gen_moves(Board* board, Move* moves);
@@ -94,5 +93,7 @@ int filter_legal(Board* board, Move* moves, int size);
 
 void make_move(Board* board, Move* move);
 void make_move_cheap(Board* board, Move* move);
+
+int score_move(Board* board, Move* move);
 
 #endif

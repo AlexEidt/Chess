@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "opening.h"
+#include "board.h"
+#include "move.h"
 
 static const int openings_size;
 

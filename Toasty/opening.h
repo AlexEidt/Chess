@@ -2,8 +2,8 @@
 #define OPENING_H_
 
 #include <stdint.h>
-#include "move.h"
 #include "board.h"
+#include "move.h"
 
 typedef struct {
     uint64_t hash;
