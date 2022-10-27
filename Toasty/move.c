@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdbool.h>
 #include "bitboard.h"
 #include "board.h"
 #include "move.h"
@@ -545,6 +546,13 @@ int filter_legal(Board* board, Move* moves, int size) {
     }
 
     return n_legal;
+}
+
+bool is_in_check(Board* board) {
+    Bitboard king = get_pieces(board, KING, board->active_color);
+    Bitboard attacks = gen_attacks(board);
+
+    return (king & attacks) != 0;
 }
 
 void make_move(Board* board, Move* move) {

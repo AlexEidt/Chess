@@ -14,8 +14,7 @@ int evaluate(Board* board) {
     score += piece_square_eval(board, active);
     score += king_safety_eval(board, active);
 
-    material = material_eval(board, inactive);
-    score -= material;
+    score -= material_eval(board, inactive);
     score += pawn_structure_eval(board, inactive);
     score -= piece_square_eval(board, inactive);
     score -= king_safety_eval(board, inactive);

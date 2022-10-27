@@ -39,7 +39,7 @@ void board_to_fen(Board* board, char* fen);
 
 void switch_ply(Board* board);
 
-void clear(Board* board);
+void board_clear(Board* board);
 uint64_t hash(Board* board);
 
 Piece get_piece(Board* board, uint8_t index);

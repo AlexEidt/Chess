@@ -2,6 +2,7 @@
 #define MOVE_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "bitboard.h"
 #include "board.h"
 
@@ -90,6 +91,8 @@ Bitboard gen_attacks(Board* board);
 int gen_moves(Board* board, Move* moves);
 int gen_captures(Board* board, Move* moves);
 int filter_legal(Board* board, Move* moves, int size);
+
+bool is_in_check(Board* board);
 
 void make_move(Board* board, Move* move);
 void make_move_cheap(Board* board, Move* move);

@@ -3,7 +3,7 @@
 #include "board.h"
 
 void board_from_fen(Board* board, const char* fen) {
-    clear(board);
+    board_clear(board);
     int i = 0;
 
     // Pieces.
@@ -54,13 +54,14 @@ void board_from_fen(Board* board, const char* fen) {
 
     // En passant square.
     if (fen[i] != '-') {
-        int file = 8 - (fen[i++] - 'a');
+        int file = 7 - (fen[i++] - 'a');
         int rank = fen[i++] - '1';
         board->en_passant = rank * 8 + file;
     } else {
         board->en_passant = 0;
         i++;
     }
+    i++;
 
     // Half moves.
     while (fen[i] != ' ') {
@@ -69,7 +70,7 @@ void board_from_fen(Board* board, const char* fen) {
     i++;
 
     // Full Moves.
-    while (fen[i] != 0) {
+    while (fen[i] != 0 && fen[i] != ' ') {
         board->full_moves = board->full_moves * 10 + (fen[i++] - '0');
     }
 }
@@ -150,7 +151,7 @@ void switch_ply(Board* board) {
     board->active_color = OPPOSITE(board->active_color);
 }
 
-void clear(Board* board) {
+void board_clear(Board* board) {
     memset(board, 0, sizeof(Board));
 }
 

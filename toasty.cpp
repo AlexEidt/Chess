@@ -10,6 +10,8 @@
 extern "C" {
 	#include "Toasty/board.h"
 	#include "Toasty/move.h"
+	#include "Toasty/search.h"
+	#include "Toasty/hashmap.h"
 }
 
 #define CAPTURE_AUDIO 0
@@ -29,6 +31,7 @@ private:
 	int screenWidth, screenHeight;
 
 	Board* chessboard;
+	HashMap* table;
 
 	std::unordered_map<byte, std::unordered_map<byte, olc::Decal*>> pieces;
 	std::vector<int> audio;
@@ -132,6 +135,7 @@ public:
 
 		chessboard = new Board();
 		board_from_fen(chessboard, BOARD_STATE);
+		table = hashmap_alloc(20);
 
 		DrawBoard();
 		GenerateMoves();
@@ -202,7 +206,7 @@ public:
 
 				if (selected != nullptr) {
 					selectedDestination = index;
-					MakeMove(selected);
+					MakeMoveGUI(selected);
 				} else {
 					selectedSource = index;
 					if (!possible_moves[selectedSource].empty()) {
@@ -220,6 +224,8 @@ public:
 
 	bool OnUserDestroy() {
 		olc::SOUND::DestroyAudio();
+		delete chessboard;
+		hashmap_free(table);
 
 		return true;
 	}
@@ -250,8 +256,28 @@ public:
 		SetPixelMode(olc::Pixel::NORMAL);
 	}
 
-	// Make a move to the selected destination.
+	// Make a move on the chess board.
 	void MakeMove(Move* move) {
+		// First, the player makes their move.
+		make_move(chessboard, move);
+
+		// Then the computer selects a move.
+		Move* selected = new Move();
+		if (select_move(chessboard, table, selected)) {
+			make_move(chessboard, selected);
+		} else {
+			gameOver = true;
+			winner = WHITE;
+		}
+
+		delete selected;
+
+		// Then all possible moves are generated for the player.
+		GenerateMoves();
+	}
+
+	// Make a move to the selected destination on the GUI.
+	void MakeMoveGUI(Move* move) {
 		// Highlight the source and destination squares of the most recently made move.
 		olc::vi2d rfs = Itov(selectedSource), rfd = Itov(selectedDestination);
 		FillRect({unit * rfs.x + unit, unit * rfs.y + unit}, {unit, unit}, highlight);
@@ -267,10 +293,7 @@ public:
 			} else {
 				olc::SOUND::PlaySample(audio[MOVE_AUDIO]);
 			}
-
-			make_move(chessboard, move);
-
-			GenerateMoves();
+			MakeMove(move);
 		}
 	}
 
@@ -284,9 +307,7 @@ public:
 					olc::SOUND::PlaySample(audio[MOVE_AUDIO]);
 				}
 
-				make_move(chessboard, move);
-
-				GenerateMoves();
+				MakeMove(move);
 				DrawBoard();
 
 				// Highlight the source and destination squares of the most recently made move.

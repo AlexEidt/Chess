@@ -11,7 +11,7 @@
 #define BISHOP_VALUE 350
 #define ROOK_VALUE 525
 #define QUEEN_VALUE 1000
-#define KING_VALUE 20000
+#define KING_VALUE 220
 
 #define TOTAL_VALUE 4250
 

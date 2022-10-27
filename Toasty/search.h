@@ -1,17 +1,21 @@
 #ifndef SEARCH_H_
 #define SEARCH_H_
 
+#include <stdbool.h>
 #include "board.h"
 #include "move.h"
+#include "hashmap.h"
 
-#define INFINITY (1 << 25)
+#define SEARCH_TIMEOUT 3.0
 
-void select_move(Board* board, Move* move);
+#define INF (1 << 25)
+#define MATE (1 << 24)
 
-int iterative_deepening(Board* board, int min, int max);
-int mtdf(Board* board, int depth, int value);
-int alpha_beta(Board* board, int depth, int alpha, int beta);
-int quiescence(Board* board, int alpha, int beta);
+bool select_move(Board* board, HashMap* hashmap, Move* move);
+
+int iterative_deepening(Board* board, HashMap* hashmap, int min, int max);
+int alpha_beta(Board* board, HashMap* hashmap, int depth, int alpha, int beta);
+int quiescence(Board* board, HashMap* hashmap, int alpha, int beta);
 
 void order_moves(Board* board, Move* moves, int size);
 
