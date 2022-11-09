@@ -1,6 +1,7 @@
 #include <string.h>
 #include "bitboard.h"
 #include "board.h"
+#include "move.h"
 
 void board_from_fen(Board* board, const char* fen) {
     board_clear(board);
@@ -240,4 +241,27 @@ bool can_castle_color(Board* board, Piece color) {
 
 bool can_castle(Board* board) {
     return *(uint16_t*)(board->castle) != 0;
+}
+
+bool is_legal(Board* board) {
+    Bitboard king = get_pieces(board, KING, OPPOSITE(board->active_color));
+    Bitboard attacks = gen_attacks(board);
+
+    return (king & attacks) == 0;
+}
+
+bool is_in_check(Board* board) {
+    Bitboard king = get_pieces(board, KING, board->active_color);
+    switch_ply(board);
+    Bitboard attacks = gen_attacks(board);
+    switch_ply(board);
+    return (king & attacks) != 0;
+}
+
+bool is_stalemate(Board* board) {
+    Move moves[MAX_MOVES];
+    switch_ply(board);
+    int n_moves = gen_moves(board, moves);
+    switch_ply(board);
+    return n_moves == 0;
 }

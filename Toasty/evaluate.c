@@ -1,23 +1,22 @@
 #include "evaluate.h"
 #include "bitboard.h"
 #include "board.h"
+#include "move.h"
 
 int evaluate(Board* board) {
     Piece active = board->active_color;
     Piece inactive = OPPOSITE(board->active_color);
-    int score = 0;
 
-    int material = material_eval(board, active);
-    score += material;
-    score += mop_up_eval(board, material, active);
-    score -= pawn_structure_eval(board, active);
-    score += piece_square_eval(board, active);
-    score += king_safety_eval(board, active);
+    int material = material_eval(board, active) - material_eval(board, inactive);
+    int pawns = pawn_structure_eval(board, inactive) - pawn_structure_eval(board, active);
+    // score += mop_up_eval(board, material, active);
+    int development = piece_square_eval(board, active) - piece_square_eval(board, inactive);
+    // score += king_safety_eval(board, active);
 
-    score -= material_eval(board, inactive);
-    score += pawn_structure_eval(board, inactive);
-    score -= piece_square_eval(board, inactive);
-    score -= king_safety_eval(board, inactive);
+    // score -= piece_square_eval(board, inactive);
+    // score -= king_safety_eval(board, inactive);
+
+    int score = material + 50 * pawns + 50 * development;
 
     return active == WHITE ? score : -score;
 }
@@ -28,12 +27,13 @@ int material_eval(Board* board, Piece color) {
     score += COUNT(get_pieces(board, PAWN, color)) * PAWN_VALUE;
     score += COUNT(get_pieces(board, KNIGHT, color)) * KNIGHT_VALUE;
     score += COUNT(get_pieces(board, ROOK, color)) * ROOK_VALUE;
+    score += COUNT(get_pieces(board, BISHOP, color)) * BISHOP_VALUE;
     score += COUNT(get_pieces(board, QUEEN, color)) * QUEEN_VALUE;
 
-    int n_bishops = COUNT(get_pieces(board, BISHOP, color));
-    score += n_bishops * BISHOP_VALUE;
-    // If the player still has both of their bishops, they get a bonus.
-    score += (n_bishops == 2) * BISHOP_BONUS;
+    // int n_bishops = COUNT(get_pieces(board, BISHOP, color));
+    // score += n_bishops * BISHOP_VALUE;
+    // // If the player still has both of their bishops, they get a bonus.
+    // score += (n_bishops == 2) * BISHOP_BONUS;
 
     return score;
 }
@@ -61,9 +61,6 @@ int pawn_structure_eval(Board* board, Piece color) {
         isolated += (files[i - 1] == 0) & (files[i + 1] == 0);
     }
 
-    stacked *= PAWN_VALUE;
-    isolated *= 2 * PAWN_VALUE;
-
     return stacked + isolated;
 }
 
@@ -71,14 +68,16 @@ int piece_square_eval(Board* board, Piece color) {
     int score = 0;
     for (int i = 0; i < 64; i++) {
         Piece current = get_color(board, i);
-        score += pst(board->positions[i], current, i, ~(current ^ color) & 1);
+        if (current == color) {
+            score += pst(board->positions[i], color, i);
+        }
     }
-    return score;
+    return score * PIECE_SQUARE_BONUS;
 }
 
-int pst(Piece piece, Piece color, int index, int color_flag) {
+int pst(Piece piece, Piece color, int index) {
     int si = color == WHITE ? index : 63 - index;
-    return PST[piece][si] * color_flag;
+    return PST[piece][si];
 }
 
 int king_safety_eval(Board* board, Piece color) {

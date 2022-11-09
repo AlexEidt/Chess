@@ -36,33 +36,10 @@ typedef uint8_t Flag;
 
 #define MAX_MOVES 256
 
-#define SOUTH 0
-#define WEST 1
-#define NORTH 2
-#define EAST 3
-
-#define SOUTHEAST 0
-#define SOUTHWEST 1
-#define NORTHWEST 2
-#define NORTHEAST 3
-
-#define KINGSIDE_PATH 0
-#define QUEENSIDE_PATH 1
-#define QUEENSIDE_PATH_TO_ROOK 2
-#define KING_POSITION 3
-#define KING_DST_KINGSIDE 4
-#define KING_DST_QUEENSIDE 5
-
 typedef struct {
     uint8_t to, from;
     Flag flags;
 } Move;
-
-extern const Bitboard KING_MOVES[64];
-extern const Bitboard KNIGHT_MOVES[64];
-extern const Bitboard ROOK_MOVES[65][4];
-extern const Bitboard BISHOP_MOVES[65][4];
-extern const Bitboard CASTLING[2][6];
 
 int score_move(Board* board, Move* move);
 
@@ -78,25 +55,28 @@ int gen_pawn_en_passant(Board* board, Move* moves, int index);
 
 int gen_knight_moves(Board* board, Move* moves, int index, bool captures_only);
 int gen_king_moves(Board* board, Move* moves, int index, bool captures_only);
-// Rook, Bishop and Queen moves.
+
 int gen_cardinal_moves(Board* board, Move* moves, int index, bool captures_only);
 int gen_intercardinal_moves(Board* board, Move* moves, int index, bool captures_only);
 
 int gen_castle_moves(Board* board, Move* moves, int index);
 
-Bitboard gen_cardinal_attacks(Board* board);
-Bitboard gen_intercardinal_attacks(Board* board);
+Bitboard gen_pawn_attacks(Board* board);
+Bitboard gen_cardinal_attacks_classical(int position, Bitboard blockers);
+Bitboard gen_intercardinal_attacks_classical(int position, Bitboard blockers);
+Bitboard gen_cardinal_attacks_magic(int position, Bitboard blockers);
+Bitboard gen_intercardinal_attacks_magic(int position, Bitboard blockers);
 Bitboard gen_attacks(Board* board);
 
 int gen_moves(Board* board, Move* moves);
 int gen_captures(Board* board, Move* moves);
-int filter_legal(Board* board, Move* moves, int size);
 
-bool is_in_check(Board* board);
+Bitboard gen_checkers(Board* board);
+Bitboard gen_pinned(Board* board);
+Bitboard gen_pinned_rays(Board* board);
+int filter_legal(Board* board, Move* moves, int size);
 
 void make_move(Board* board, Move* move);
 void make_move_cheap(Board* board, Move* move);
-
-int score_move(Board* board, Move* move);
 
 #endif

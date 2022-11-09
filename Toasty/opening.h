@@ -13,6 +13,6 @@ typedef struct {
 
 extern const Opening openings[];
 
-bool select_opening(Board* board, Move* moves, int size, Move* move);
+bool select_opening(Board* board, Move* move);
 
 #endif

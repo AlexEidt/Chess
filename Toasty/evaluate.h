@@ -16,12 +16,18 @@
 #define TOTAL_VALUE 4250
 
 #define BISHOP_BONUS (BISHOP_VALUE / 2)
-#define KING_QUADRANT_BONUS 64
-#define KING_CORNER_BONUS 8
+#define KING_QUADRANT_BONUS 4
+#define KING_CORNER_BONUS 4
 #define KING_DISTANCE_BONUS 8
+#define PIECE_SQUARE_BONUS 8
+#define STACKED_PAWN_BONUS 2
+#define ISOLATED_PAWN_BONUS 4
 
 #define PROMOTION_BONUS 32768
-#define CAPTURE_BONUS 16
+#define CAPTURE_BONUS 8
+#define PAWN_ATTACK_PENALTY 4096
+
+#define CHECKMATE 131072
 
 extern const int PIECE_VALUES[7];
 extern const int PST[7][64];
@@ -33,7 +39,7 @@ int evaluate(Board* board);
 int material_eval(Board* board, Piece color);
 int pawn_structure_eval(Board* board, Piece color);
 int piece_square_eval(Board* board, Piece color);
-int pst(Piece piece, Piece color, int index, int color_flag);
+int pst(Piece piece, Piece color, int index);
 int king_safety_eval(Board* board, Piece color);
 int mop_up_eval(Board* board, int material, Piece color);
 

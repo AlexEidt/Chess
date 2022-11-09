@@ -60,4 +60,8 @@ bool can_castle_queenside(Board* board, Piece color);
 bool can_castle_color(Board* board, Piece color);
 bool can_castle(Board* board);
 
+bool is_legal(Board* board);
+bool is_in_check(Board* board);
+bool is_stalemate(Board* board);
+
 #endif

@@ -100,4 +100,40 @@ typedef uint64_t Bitboard;
 #define Q3 0b0000000000000000000000000000000011110000111100001111000011110000ULL
 #define Q4 0b0000000000000000000000000000000000001111000011110000111100001111ULL
 
+#define SOUTH 0
+#define WEST 1
+#define NORTH 2
+#define EAST 3
+
+#define SOUTHEAST 0
+#define SOUTHWEST 1
+#define NORTHWEST 2
+#define NORTHEAST 3
+
+#define KINGSIDE_PATH 0
+#define QUEENSIDE_PATH 1
+#define QUEENSIDE_PATH_TO_ROOK 2
+#define KING_POSITION 3
+#define KING_DST_KINGSIDE 4
+#define KING_DST_QUEENSIDE 5
+
+Bitboard get_blocker(Bitboard mask, int square);
+void init_magic_tables();
+void init_rook_table();
+void init_bishop_table();
+
+extern const Bitboard KING_MOVES[64];
+extern const Bitboard KNIGHT_MOVES[64];
+extern const Bitboard ROOK_MOVES[65][4];
+extern const Bitboard BISHOP_MOVES[65][4];
+extern const Bitboard ROOK_MAGIC[64];
+extern const Bitboard BISHOP_MAGIC[64];
+extern const int ROOK_OFFSET[64];
+extern const int BISHOP_OFFSET[64];
+extern const Bitboard ROOK_BLOCKER_MASK[64];
+extern const Bitboard BISHOP_BLOCKER_MASK[64];
+extern Bitboard ROOK_TABLE[64][4096];
+extern Bitboard BISHOP_TABLE[64][512];
+extern const Bitboard CASTLING[2][6];
+
 #endif

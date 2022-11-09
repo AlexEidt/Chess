@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "hashmap.h"
+#include "move.h"
 
 HashMap* hashmap_alloc(int size) {
     HashMap* hashmap = (HashMap*) malloc(sizeof(HashMap));
@@ -16,24 +17,25 @@ void hashmap_free(HashMap* hashmap) {
     free(hashmap);
 }
 
-void hashmap_set(HashMap* hashmap, uint64_t key, int value, int depth) {
-    Item* item = &hashmap->data[key & (hashmap->size - 1)];
+void hashmap_clear(HashMap* hashmap) {
+    memset(hashmap->data, 0, hashmap->size * sizeof(Item));
+}
+
+void hashmap_set(HashMap* hashmap, uint64_t key, int value, int depth, int flag) {
+    Item* item = &hashmap->data[(key >> KEY_OFFSET) & (hashmap->size - 1)];
     if (depth >= item->depth) {
         item->key = key;
         item->value = value;
         item->depth = depth;
+        item->flag = flag;
     }
 }
 
-bool hashmap_get(HashMap* hashmap, uint64_t key, int depth, int* ret) {
-    Item* found = &hashmap->data[key & (hashmap->size - 1)];
-    if (depth >= found->depth && key == found->key) {
-        *ret = found->value;
-        return true;
+int hashmap_get(HashMap* hashmap, uint64_t key, int depth, int* ret) {
+    Item* item = &hashmap->data[(key >> KEY_OFFSET) & (hashmap->size - 1)];
+    if (depth <= item->depth && key == item->key) {
+        *ret = item->value;
+        return item->flag;
     }
-    return false;
-}
-
-void hashmap_clear(HashMap* hashmap) {
-    memset(hashmap->data, 0, hashmap->size * sizeof(Item));
+    return 0;
 }

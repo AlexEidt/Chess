@@ -1,17 +1,21 @@
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include "opening.h"
 #include "board.h"
 #include "move.h"
 
 static const int openings_size;
 
-bool select_opening(Board* board, Move* moves, int size, Move* move) {
+bool select_opening(Board* board, Move* move) {
     int possible[256]; // Indices of possible openings in "openings" array.
 
     uint64_t board_hash = hash(board);
 
     const int possible_size = sizeof(possible) / sizeof(int);
+
+    Move moves[MAX_MOVES];
+    int n_moves = gen_moves(board, moves);
 
     int n_openings = 0;
     for (int i = 0; i < openings_size && n_openings < possible_size; i++) {
@@ -19,7 +23,7 @@ bool select_opening(Board* board, Move* moves, int size, Move* move) {
         if (opening->hash == board_hash) {
             const Move* opening_move = &opening->move;
             // Check if the given move is valid in case of hash collision.
-            for (int j = 0; j < size; j++) {
+            for (int j = 0; j < n_moves; j++) {
                 Move* check = &moves[j];
                 if (check->to == opening_move->to && check->from == opening_move->from && check->flags == opening_move->flags) {
                     possible[n_openings++] = i;
@@ -38,6 +42,7 @@ bool select_opening(Board* board, Move* moves, int size, Move* move) {
 
     // Weighted random selection based on the number of times
     // the opening appears in the database.
+    srand(time(NULL));
     int selection = rand() % total;
     total = 0;
     for (int i = 0; i < n_openings; i++) {

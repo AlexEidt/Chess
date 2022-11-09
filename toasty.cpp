@@ -8,6 +8,7 @@
 #include "olcPGEX_Sound.h"
 
 extern "C" {
+	#include "Toasty/bitboard.h"
 	#include "Toasty/board.h"
 	#include "Toasty/move.h"
 	#include "Toasty/search.h"
@@ -50,7 +51,7 @@ private:
 	// Size of a chess piece sprite in pixels.
 	float pieceSize;
 	// Colors for the chess board.
-	olc::Pixel light, dark, background, highlight;
+	olc::Pixel light, dark, background, highlight, highlightEnemy;
 
 	// Flags for Pawn Promotions.
 	bool isPromotion;
@@ -58,6 +59,8 @@ private:
 
 	bool gameOver;
 	Piece winner; // WHITE, BLACK, or DRAW.
+
+	bool waiting; // Waiting for the AI to select a move.
 
 	// Used to track duplicate move destination spots to avoid redrawing circles.
 	std::vector<int> destinations;
@@ -122,6 +125,7 @@ public:
 		dark = {119, 149, 86};
 		background = {49, 46, 43};
 		highlight = {246, 246, 105};
+		highlightEnemy = {255, 70, 3};
 
 		isPromotion = false;
 		promoted = EMPTY;
@@ -129,25 +133,19 @@ public:
 
 		gameOver = false;
 		winner = 0;
+
+		waiting = false;
 		
 		selectedSource = -1;
 		selectedDestination = -1;
 
 		chessboard = new Board();
 		board_from_fen(chessboard, BOARD_STATE);
+		init_magic_tables();
 		table = hashmap_alloc(20);
 
 		DrawBoard();
 		GenerateMoves();
-
-		// std::clock_t start;
-		// uint64_t expected[] = {1, 20, 400, 8902, 197281, 4865609, 119060324};
-		// for (int i = 0; i < sizeof(expected) / sizeof(uint64_t); i++) {
-		// 	start = std::clock();
-		// 	uint64_t actual = perft(i);
-		// 	std::cout << "Time: " << (std::clock() - start) / (double)(CLOCKS_PER_SEC / 1000) << " ms" << std::endl;
-		// 	printf("Depth: %d, Expected: %d, Actual: %d\n", i, expected[i], actual);
-		// }
 
 		return true;
 	}
@@ -156,8 +154,12 @@ public:
 		olc::vi2d mouse = {GetMouseX(), GetMouseY()};
 		DrawPieces();
 
+		if (waiting) {
+			return true;
+		}
+
 		if (gameOver) {
-			DrawStringDecal({10, 10}, winner == DRAW ? "Draw" : "Checkmate", {255, 255, 255}, {5, 5});
+			DrawStringDecal({10, 10}, winner == DRAW ? "Draw" : "Checkmate", {255, 255, 255}, {3, 3});
 			return true;
 		}
 
@@ -261,19 +263,44 @@ public:
 		// First, the player makes their move.
 		make_move(chessboard, move);
 
-		// Then the computer selects a move.
-		Move* selected = new Move();
-		if (select_move(chessboard, table, selected)) {
-			make_move(chessboard, selected);
-		} else {
-			gameOver = true;
-			winner = WHITE;
-		}
+		// GenerateMoves();
 
-		delete selected;
+		std::thread thread = std::thread([this] {
+			waiting = true;
 
-		// Then all possible moves are generated for the player.
-		GenerateMoves();
+			// Then the computer selects a move.
+			Move* selected = new Move();
+			Board copy = *chessboard;
+			select_move(&copy, table, selected);
+
+			Move moves[MAX_MOVES];
+			int n_moves = gen_moves(&copy, moves);
+
+			if (n_moves > 0) {
+				make_move(chessboard, selected);
+				if (IS_CAPTURE(selected->flags) || IS_CASTLE(selected->flags)) {
+					olc::SOUND::PlaySample(audio[CAPTURE_AUDIO]);
+				} else {
+					olc::SOUND::PlaySample(audio[MOVE_AUDIO]);
+				}
+				// Highlight the source and destination squares of the most recently made move.
+				olc::vi2d rfs = Itov(selected->from), rfd = Itov(selected->to);
+				FillRect({unit * rfs.x + unit, unit * rfs.y + unit}, {unit, unit}, highlightEnemy);
+				FillRect({unit * rfd.x + unit, unit * rfd.y + unit}, {unit, unit}, highlightEnemy);
+			} else {
+				gameOver = true;
+				winner = WHITE;
+			}
+
+			delete selected;
+
+			// Then all possible moves are generated for the player.
+			GenerateMoves();
+
+			waiting = false;
+		});
+
+		thread.detach();
 	}
 
 	// Make a move to the selected destination on the GUI.
@@ -435,30 +462,6 @@ public:
 			Move* move = &moves[i];
 			possible_moves[move->from].push_back(move);
 		}
-	}
-
-	uint64_t perft(int depth) {
-		Board* board = new Board();
-		board_from_fen(board, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-
-		return helper(board, depth);
-	}
-
-	uint64_t helper(Board* board, int depth) {
-		if (depth == 0) return 1ULL;
-
-		Move moves[MAX_MOVES];
-		int n_moves = gen_moves(board, moves);
-
-		Board copy = *board;
-		uint64_t nodes = 0;
-		for (int i = 0; i < n_moves; i++) {
-			make_move(board, &moves[i]);
-			nodes += helper(board, depth - 1);
-			*board = copy; // Undo move.
-		}
-
-		return nodes;
 	}
 };
 
