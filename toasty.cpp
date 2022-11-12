@@ -23,8 +23,6 @@ extern "C" {
 #define BOARD_STATE "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 #define ENABLE_AI true
-#define CHECKMATE 0
-#define STALEMATE 1
 
 class Chess : public olc::PixelGameEngine {
 public:
@@ -65,7 +63,6 @@ private:
 	Piece winner; // WHITE, BLACK, or DRAW.
 
 	bool waiting; // Waiting for the AI to select a move.
-	bool ai_enabled;
 	Piece ai_color;
 
 	// Used to track duplicate move destination spots to avoid redrawing circles.
@@ -141,7 +138,6 @@ public:
 		winner = 0;
 
 		waiting = false;
-		ai_enabled = ENABLE_AI;
 		ai_color = BLACK;
 		
 		selectedSource = -1;
@@ -159,11 +155,6 @@ public:
 	}
 
 	bool OnUserUpdate(float fElapsedTime) override {
-		if (GetKey(olc::Key::SPACE).bPressed) {
-			ai_enabled = !ai_enabled;
-			ai_color = OPPOSITE(chessboard->active_color);
-		}
-
 		if (GetKey(olc::Key::ESCAPE).bPressed) {
 			if (isPromotion) {
 				isPromotion = false;
@@ -179,10 +170,6 @@ public:
 			}
 		}
 
-		if (ai_enabled) {
-			// DrawDecal({10, 10}, pieces[ai_color][ROOK], {float(unit / pieceSize), float(unit / pieceSize)});
-		}
-
 		olc::vi2d mouse = {GetMouseX(), GetMouseY()};
 		DrawPieces();
 
@@ -191,7 +178,7 @@ public:
 		}
 
 		if (gameOver) {
-			DrawStringDecal({10, 10}, winner == CHECKMATE ? "Checkmate" : "Stalemate", {255, 255, 255}, {3, 3});
+			DrawStringDecal({5, 5}, "Game Over", {255, 255, 255}, {3, 3});
 			return true;
 		}
 
@@ -295,7 +282,7 @@ public:
 		// First, the player makes their move.
 		make_move(chessboard, move);
 
-		if (ai_enabled) {
+		if (ENABLE_AI) {
 			std::thread thread = std::thread([this] {
 				waiting = true;
 
@@ -316,7 +303,6 @@ public:
 					FillRect({unit * rfd.x + unit, unit * rfd.y + unit}, {unit, unit}, highlightEnemy);
 				} else {
 					gameOver = true;
-					winner = is_in_check(chessboard) ? CHECKMATE : STALEMATE;
 					olc::SOUND::PlaySample(audio[END_AUDIO]);
 				}
 
