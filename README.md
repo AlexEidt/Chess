@@ -11,7 +11,7 @@ A Chess Engine with a GUI.
 * Bitboard Board Representation
 * Magic Bitboard Sliding Move Generation
 * Opening Book based on ~8000 games
-* Move Searching using Minimax with Alpha-Beta pruning, MTDF, Null Move Pruning, Move Ordering, Quiescence Search, Memoization, and Iterative Deepening.
+* Move Searching using Minimax with Alpha-Beta pruning, MTDF, Null Move Pruning, Move Ordering, Quiescence Search, Memoization, and Iterative Deepening
 
 ## Usage
 

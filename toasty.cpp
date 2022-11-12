@@ -191,7 +191,7 @@ public:
 		}
 
 		if (gameOver) {
-			DrawStringDecal({10, 10}, "Game Over!", {255, 255, 255}, {3, 3});
+			DrawStringDecal({10, 10}, winner == CHECKMATE ? "Checkmate" : "Stalemate", {255, 255, 255}, {3, 3});
 			return true;
 		}
 

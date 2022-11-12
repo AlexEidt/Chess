@@ -8,7 +8,7 @@
 HashMap* hashmap_alloc(int size) {
     HashMap* hashmap = (HashMap*) malloc(sizeof(HashMap));
     hashmap->size = 1 << size;
-    hashmap->data = (Item*) calloc(hashmap->size, sizeof(Item));
+    hashmap->data = calloc(hashmap->size, sizeof(Item));
     return hashmap;
 }
 
