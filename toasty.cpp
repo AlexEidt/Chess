@@ -178,7 +178,7 @@ public:
 		}
 
 		if (gameOver) {
-			DrawStringDecal({5, 5}, "Game Over", {255, 255, 255}, {3, 3});
+			DrawStringDecal({10, 10}, "Game Over", {255, 255, 255}, {4, 4});
 			return true;
 		}
 
