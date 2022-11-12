@@ -2,7 +2,9 @@
 
 A Chess Engine with a GUI.
 
-<img src="https://github.com/AlexEidt/docs/blob/master/Toasty/Toasty-Chess.gif" alt="Toasty Chess Engine Demo" />
+<p align="center">
+    <img src="https://github.com/AlexEidt/docs/blob/master/Toasty/Toasty-Chess.gif" alt="Toasty Chess Engine Demo" />
+</p>
 
 ## Features
 
