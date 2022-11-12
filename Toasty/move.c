@@ -1,4 +1,3 @@
-#include <string.h>
 #include <stdbool.h>
 #include "bitboard.h"
 #include "board.h"
@@ -12,19 +11,20 @@ int score_move(Board* board, Move* move) {
     int score = 0;
     // Promotions.
     score += PIECE_VALUES[PROMOTED_PIECE(move->flags)];
-    // Piece Square Table evaluation.
-    score -= pst(src, board->active_color, move->from);
-    score += pst(src, board->active_color, move->to);
     // Captures.
-    score += (PIECE_VALUES[dst] - PIECE_VALUES[src]) * IS_CAPTURE(move->flags) * CAPTURE_BONUS;
+    score += (PIECE_VALUES[dst] * CAPTURE_BONUS - PIECE_VALUES[src]) * IS_CAPTURE(move->flags);
 
-    // Penalize moving to a position that is attacked by an opposing pawn.
     if (src != PAWN) {
         switch_ply(board);
-        Bitboard pawn_attacks = gen_pawn_attacks(board);
+        Bitboard attacks = gen_attacks(board);
         switch_ply(board);
-        if (((1ULL << move->to) & pawn_attacks) != 0) {
-            score -= PAWN_ATTACK_PENALTY;
+        // Promote moving away from a piece currently attacked.
+        if (((1ULL << move->from) & attacks) != 0) {
+            score += PIECE_VALUES[src];
+        }
+        // Penalize moving to an attacked spot.
+        if (((1ULL << move->to) & attacks) != 0) {
+            score -= CAPTURE_BONUS * PIECE_VALUES[src];
         }
     }
 
@@ -442,26 +442,26 @@ int gen_captures(Board* board, Move* moves) {
     return filter_legal(board, moves, index);
 }
 
-Bitboard gen_checkers(Board* board) {
+Bitboard gen_checkers(Board* board, int position) {
     Piece active = board->active_color;
     Piece inactive = OPPOSITE(active);
 
     Bitboard checks = 0;
 
-    Bitboard king = get_pieces(board, KING, active);
-    int king_pos = LSB(king);
+    Bitboard piece = 1ULL << position;
+    checks |= KING_MOVES[position] & get_pieces(board, KING, inactive);
 
     // Knight Checks.
-    checks |= KNIGHT_MOVES[king_pos] & get_pieces(board, KNIGHT, inactive);
+    checks |= KNIGHT_MOVES[position] & get_pieces(board, KNIGHT, inactive);
 
     // Pawn Checks.
     Bitboard pawns = get_pieces(board, PAWN, inactive);
     if (WHITE_TO_MOVE(board)) {
-        checks |= ((king & ~FILEA) << 9) & pawns;
-        checks |= ((king & ~FILEH) << 7) & pawns;
+        checks |= ((piece & ~FILEA) << 9) & pawns;
+        checks |= ((piece & ~FILEH) << 7) & pawns;
     } else {
-        checks |= ((king & ~FILEH) >> 9) & pawns;
-        checks |= ((king & ~FILEA) >> 7) & pawns;
+        checks |= ((piece & ~FILEH) >> 9) & pawns;
+        checks |= ((piece & ~FILEA) >> 7) & pawns;
     }
 
     // Sliding Checks.
@@ -469,116 +469,26 @@ Bitboard gen_checkers(Board* board) {
     Bitboard bishops = get_pieces(board, BISHOP, inactive);
     Bitboard queens = get_pieces(board, QUEEN, inactive);
     Bitboard all = get_all_pieces(board);
-    checks |= gen_cardinal_attacks_magic(king_pos, all) & (rooks | queens);
-    checks |= gen_intercardinal_attacks_magic(king_pos, all) & (bishops | queens);
+    checks |= gen_cardinal_attacks_magic(position, all) & (rooks | queens);
+    checks |= gen_intercardinal_attacks_magic(position, all) & (bishops | queens);
 
     return checks;
 }
 
-Bitboard gen_pinned(Board* board) {
-    Bitboard pinned = 0;
-
-    Piece active = board->active_color;
-    Piece inactive = OPPOSITE(active);
-
-    Bitboard all = get_all_pieces(board);
-
-    Bitboard king = get_pieces(board, KING, active);
-    int king_pos = LSB(king);
-
-    Bitboard cardinal_king = gen_cardinal_attacks_magic(king_pos, all);
-    Bitboard intercardinal_king = gen_cardinal_attacks_magic(king_pos, all);
-
-    Bitboard rooks = get_pieces(board, ROOK, inactive);
-    Bitboard bishops = get_pieces(board, BISHOP, inactive);
-    Bitboard queens = get_pieces(board, QUEEN, inactive);
-    // Sliding Attacks.
-    Bitboard sliding_cardinal = rooks | queens;
-    while (sliding_cardinal != 0) {
-        int pos = LSB(sliding_cardinal);
-        sliding_cardinal &= sliding_cardinal - 1;
-        pinned |= gen_cardinal_attacks_magic(pos, all) & cardinal_king;
-    }
-    Bitboard sliding_intercardinal = bishops | queens;
-    while (sliding_intercardinal != 0) {
-        int pos = LSB(sliding_intercardinal);
-        sliding_intercardinal &= sliding_intercardinal - 1;
-        pinned |= gen_intercardinal_attacks_magic(pos, all) & intercardinal_king;
-    }
-
-    return pinned;
-}
-
-Bitboard gen_pinned_rays(Board* board) {
-    Piece active = board->active_color;
-    Piece inactive = OPPOSITE(active);
-
-    Bitboard king = get_pieces(board, KING, active);
-    int king_pos = LSB(king);
-
-    Bitboard cardinal_king = 0;
-    cardinal_king |= ROOK_MOVES[king_pos][NORTH];
-    cardinal_king |= ROOK_MOVES[king_pos][EAST];
-    cardinal_king |= ROOK_MOVES[king_pos][SOUTH];
-    cardinal_king |= ROOK_MOVES[king_pos][WEST];
-    Bitboard intercardinal_king = 0;
-    intercardinal_king |= BISHOP_MOVES[king_pos][NORTHEAST];
-    intercardinal_king |= BISHOP_MOVES[king_pos][NORTHWEST];
-    intercardinal_king |= BISHOP_MOVES[king_pos][SOUTHEAST];
-    intercardinal_king |= BISHOP_MOVES[king_pos][SOUTHWEST];
-
-    Bitboard pinned_rays = 0;
-
-    Bitboard all = get_all_pieces(board);
-
-    Bitboard rooks = get_pieces(board, ROOK, inactive);
-    Bitboard bishops = get_pieces(board, BISHOP, inactive);
-    Bitboard queens = get_pieces(board, QUEEN, inactive);
-    // Sliding Attacks.
-    Bitboard sliding_cardinal = rooks | queens;
-    while (sliding_cardinal != 0) {
-        int pos = LSB(sliding_cardinal);
-        sliding_cardinal &= sliding_cardinal - 1;
-        pinned_rays |= gen_cardinal_attacks_magic(pos, all) & cardinal_king;
-    }
-    Bitboard sliding_intercardinal = bishops | queens;
-    while (sliding_intercardinal != 0) {
-        int pos = LSB(sliding_intercardinal);
-        sliding_intercardinal &= sliding_intercardinal - 1;
-        pinned_rays |= gen_intercardinal_attacks_magic(pos, all) & intercardinal_king;
-    }
-
-    return pinned_rays;
-}
-
 int filter_legal(Board* board, Move* moves, int size) {
-    // const Board copy = *board;
-
-    // int n_legal = 0;
-    // for (int i = 0; i < size; i++) {
-    //     Move* move = &moves[i];
-    //     make_move_cheap(board, move);
-    //     // If king is not in check after making the move, then it is legal.
-    //     if (gen_checkers(board) == 0) {
-    //         moves[n_legal++] = *move;
-    //     }
-    //     memcpy(board, &copy, sizeof(Board)); // Undo move.
-    // }
-
     const Board copy = *board;
+    int king_pos = LSB(get_pieces(board, KING, board->active_color));
 
     int n_legal = 0;
     for (int i = 0; i < size; i++) {
         Move* move = &moves[i];
+        int pos = board->positions[move->from] == KING ? move->to : king_pos;
         make_move_cheap(board, move);
-        Bitboard king = get_pieces(board, KING, board->active_color);
-        switch_ply(board);
-        Bitboard attacks = gen_attacks(board);
         // If king is not in check after making the move, then it is legal.
-        if ((king & attacks) == 0) {
+        if (gen_checkers(board, pos) == 0) {
             moves[n_legal++] = *move;
         }
-        memcpy(board, &copy, sizeof(Board)); // Undo move.
+        *board = copy; // Undo move.
     }
 
     return n_legal;

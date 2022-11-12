@@ -8,15 +8,16 @@ int evaluate(Board* board) {
     Piece inactive = OPPOSITE(board->active_color);
 
     int material = material_eval(board, active) - material_eval(board, inactive);
-    int pawns = pawn_structure_eval(board, inactive) - pawn_structure_eval(board, active);
-    // score += mop_up_eval(board, material, active);
+    int pawn_structure = pawn_structure_eval(board, inactive) - pawn_structure_eval(board, active);
     int development = piece_square_eval(board, active) - piece_square_eval(board, inactive);
-    // score += king_safety_eval(board, active);
+    int king_safety = king_safety_eval(board, active) - king_safety_eval(board, inactive);
 
-    // score -= piece_square_eval(board, inactive);
-    // score -= king_safety_eval(board, inactive);
-
-    int score = material + 50 * pawns + 50 * development;
+    int score = 0;
+    score += material;
+    score += PAWN_STRUCTURE_BONUS * pawn_structure;
+    score += DEVELOPMENT_BONUS * development;
+    score += KING_SAFETY_BONUS * king_safety;
+    score += mop_up_eval(board, material, active);
 
     return active == WHITE ? score : -score;
 }
@@ -27,13 +28,12 @@ int material_eval(Board* board, Piece color) {
     score += COUNT(get_pieces(board, PAWN, color)) * PAWN_VALUE;
     score += COUNT(get_pieces(board, KNIGHT, color)) * KNIGHT_VALUE;
     score += COUNT(get_pieces(board, ROOK, color)) * ROOK_VALUE;
-    score += COUNT(get_pieces(board, BISHOP, color)) * BISHOP_VALUE;
     score += COUNT(get_pieces(board, QUEEN, color)) * QUEEN_VALUE;
 
-    // int n_bishops = COUNT(get_pieces(board, BISHOP, color));
-    // score += n_bishops * BISHOP_VALUE;
-    // // If the player still has both of their bishops, they get a bonus.
-    // score += (n_bishops == 2) * BISHOP_BONUS;
+    int n_bishops = COUNT(get_pieces(board, BISHOP, color));
+    score += n_bishops * BISHOP_VALUE;
+    // If the player still has both of their bishops, they get a bonus.
+    score += (n_bishops == 2) * BISHOP_VALUE / 2;
 
     return score;
 }
@@ -72,7 +72,7 @@ int piece_square_eval(Board* board, Piece color) {
             score += pst(board->positions[i], color, i);
         }
     }
-    return score * PIECE_SQUARE_BONUS;
+    return score;
 }
 
 int pst(Piece piece, Piece color, int index) {

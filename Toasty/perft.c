@@ -5,7 +5,6 @@
 #include "board.h"
 #include "move.h"
 
-
 int main(int argc, char* args[]) {
     init_magic_tables();
     Board board;

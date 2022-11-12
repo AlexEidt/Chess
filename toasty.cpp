@@ -22,6 +22,10 @@ extern "C" {
 
 #define BOARD_STATE "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
+#define ENABLE_AI true
+#define CHECKMATE 0
+#define STALEMATE 1
+
 class Chess : public olc::PixelGameEngine {
 public:
 	Chess() {
@@ -61,6 +65,8 @@ private:
 	Piece winner; // WHITE, BLACK, or DRAW.
 
 	bool waiting; // Waiting for the AI to select a move.
+	bool ai_enabled;
+	Piece ai_color;
 
 	// Used to track duplicate move destination spots to avoid redrawing circles.
 	std::vector<int> destinations;
@@ -135,6 +141,8 @@ public:
 		winner = 0;
 
 		waiting = false;
+		ai_enabled = ENABLE_AI;
+		ai_color = BLACK;
 		
 		selectedSource = -1;
 		selectedDestination = -1;
@@ -151,6 +159,30 @@ public:
 	}
 
 	bool OnUserUpdate(float fElapsedTime) override {
+		if (GetKey(olc::Key::SPACE).bPressed) {
+			ai_enabled = !ai_enabled;
+			ai_color = OPPOSITE(chessboard->active_color);
+		}
+
+		if (GetKey(olc::Key::ESCAPE).bPressed) {
+			if (isPromotion) {
+				isPromotion = false;
+				promoted = EMPTY;
+				promotedHover = EMPTY;
+				DrawBoard();
+				// Highlight the source squares of the most recently selected move.
+				olc::vi2d rfs = Itov(selectedSource);
+				FillRect({unit * rfs.x + unit, unit * rfs.y + unit}, {unit, unit}, highlight);
+			} else {
+				selectedSource = -1;
+				DrawBoard();
+			}
+		}
+
+		if (ai_enabled) {
+			// DrawDecal({10, 10}, pieces[ai_color][ROOK], {float(unit / pieceSize), float(unit / pieceSize)});
+		}
+
 		olc::vi2d mouse = {GetMouseX(), GetMouseY()};
 		DrawPieces();
 
@@ -159,7 +191,7 @@ public:
 		}
 
 		if (gameOver) {
-			DrawStringDecal({10, 10}, winner == DRAW ? "Draw" : "Checkmate", {255, 255, 255}, {3, 3});
+			DrawStringDecal({10, 10}, "Game Over!", {255, 255, 255}, {3, 3});
 			return true;
 		}
 
@@ -263,44 +295,41 @@ public:
 		// First, the player makes their move.
 		make_move(chessboard, move);
 
-		// GenerateMoves();
+		if (ai_enabled) {
+			std::thread thread = std::thread([this] {
+				waiting = true;
 
-		std::thread thread = std::thread([this] {
-			waiting = true;
+				// Then the computer selects a move.
+				Move selected;
+				Board copy = *chessboard;
 
-			// Then the computer selects a move.
-			Move* selected = new Move();
-			Board copy = *chessboard;
-			select_move(&copy, table, selected);
-
-			Move moves[MAX_MOVES];
-			int n_moves = gen_moves(&copy, moves);
-
-			if (n_moves > 0) {
-				make_move(chessboard, selected);
-				if (IS_CAPTURE(selected->flags) || IS_CASTLE(selected->flags)) {
-					olc::SOUND::PlaySample(audio[CAPTURE_AUDIO]);
+				if (select_move(&copy, table, &selected)) {
+					make_move(chessboard, &selected);
+					if (IS_CAPTURE(selected.flags) || IS_CASTLE(selected.flags)) {
+						olc::SOUND::PlaySample(audio[CAPTURE_AUDIO]);
+					} else {
+						olc::SOUND::PlaySample(audio[MOVE_AUDIO]);
+					}
+					// Highlight the source and destination squares of the most recently made move.
+					olc::vi2d rfs = Itov(selected.from), rfd = Itov(selected.to);
+					FillRect({unit * rfs.x + unit, unit * rfs.y + unit}, {unit, unit}, highlightEnemy);
+					FillRect({unit * rfd.x + unit, unit * rfd.y + unit}, {unit, unit}, highlightEnemy);
 				} else {
-					olc::SOUND::PlaySample(audio[MOVE_AUDIO]);
+					gameOver = true;
+					winner = is_in_check(chessboard) ? CHECKMATE : STALEMATE;
+					olc::SOUND::PlaySample(audio[END_AUDIO]);
 				}
-				// Highlight the source and destination squares of the most recently made move.
-				olc::vi2d rfs = Itov(selected->from), rfd = Itov(selected->to);
-				FillRect({unit * rfs.x + unit, unit * rfs.y + unit}, {unit, unit}, highlightEnemy);
-				FillRect({unit * rfd.x + unit, unit * rfd.y + unit}, {unit, unit}, highlightEnemy);
-			} else {
-				gameOver = true;
-				winner = WHITE;
-			}
 
-			delete selected;
+				// Then all possible moves are generated for the player.
+				GenerateMoves();
 
-			// Then all possible moves are generated for the player.
+				waiting = false;
+			});
+
+			thread.detach();
+		} else {
 			GenerateMoves();
-
-			waiting = false;
-		});
-
-		thread.detach();
+		}
 	}
 
 	// Make a move to the selected destination on the GUI.

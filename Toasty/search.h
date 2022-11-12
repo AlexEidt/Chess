@@ -12,24 +12,13 @@
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
 #define SEARCH_TIMEOUT 1
-#define NUM_CPUS 4
 
 #define INF (1 << 25)
 
-typedef struct {
-    Board* board;
-    bool* stop;
-    HashMap* hashmap;
-    int depth, alpha, beta;
-    Move* selected;
-    mtx_t* mutex;
-    int cpu;
-} SearchArgs;
+int timer(void* arg);
+void start_timer(bool* stop);
 
-static int timer(void* arg);
-static void start_timer(bool* stop);
-
-void select_move(Board* board, HashMap* hashmap, Move* move);
+bool select_move(Board* board, HashMap* hashmap, Move* move);
 
 int search_moves(Board* board, bool* stop, HashMap* hashmap, int depth, int alpha, int beta, Move* selected);
 int alpha_beta(Board* board, bool* stop, HashMap* hashmap, int depth, int ply, int alpha, int beta);

@@ -251,17 +251,6 @@ bool is_legal(Board* board) {
 }
 
 bool is_in_check(Board* board) {
-    Bitboard king = get_pieces(board, KING, board->active_color);
-    switch_ply(board);
-    Bitboard attacks = gen_attacks(board);
-    switch_ply(board);
-    return (king & attacks) != 0;
-}
-
-bool is_stalemate(Board* board) {
-    Move moves[MAX_MOVES];
-    switch_ply(board);
-    int n_moves = gen_moves(board, moves);
-    switch_ply(board);
-    return n_moves == 0;
+    Bitboard king = get_pieces(board, KING, OPPOSITE(board->active_color));
+    return gen_checkers(board, LSB(king)) != 0;
 }

@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <search.h>
-#include <string.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <time.h>
@@ -13,24 +12,23 @@
 #include "move.h"
 #include "hashmap.h"
 
-#include <stdio.h>
-static int timer(void* arg) {
+int timer(void* arg) {
     sleep(SEARCH_TIMEOUT);
     *(bool*) arg = true;
     return 0;
 }
 
-static void start_timer(bool* stop) {
+void start_timer(bool* stop) {
     thrd_t thrd;
     thrd_create(&thrd, timer, stop);
 }
 
-void select_move(Board* board, HashMap* hashmap, Move* move) {
+bool select_move(Board* board, HashMap* hashmap, Move* move) {
     if (IN_OPENING_BOOK(board)) {
         // If an opening could be found, make that move.
         if (select_opening(board, move)) {
             sleep(SEARCH_TIMEOUT);
-            return;
+            return true;
         }
     }
 
@@ -60,8 +58,10 @@ void select_move(Board* board, HashMap* hashmap, Move* move) {
         depth++;
     }
 
-    printf("%d\n", depth);
     *move = selected;
+
+    Move moves[MAX_MOVES];
+	return gen_moves(board, moves) > 0;
 }
 
 int search_moves(Board* board, bool* stop, HashMap* hashmap, int depth, int alpha, int beta, Move* selected) {
@@ -70,22 +70,23 @@ int search_moves(Board* board, bool* stop, HashMap* hashmap, int depth, int alph
 
     order_moves(board, moves, n_moves);
 
-    Move move = {0, 0, 0};
+    Move best = {0, 0, 0};
 
     const Board copy = *board;
     for (int i = 0; i < n_moves && !*stop; i++) {
-        make_move(board, &moves[i]);
+        Move* move = &moves[i];
+        make_move(board, move);
         int eval = -alpha_beta(board, stop, hashmap, depth - 1, 1, -beta, -alpha);
-        memcpy(board, &copy, sizeof(Board)); // Undo move.
+        *board = copy; // Undo move.
 
         if (eval > alpha) {
             alpha = eval;
-            move = moves[i];
+            best = *move;
         }
     }
 
-    if (move.to != move.from) {
-        *selected = move;
+    if (best.to != best.from) {
+        *selected = best;
     }
 
     return alpha;
@@ -104,7 +105,7 @@ int alpha_beta(Board* board, bool* stop, HashMap* hashmap, int depth, int ply, i
     uint64_t board_hash = hash(board);
     int score, flag;
     if (flag = hashmap_get(hashmap, board_hash, depth, &score)) {
-        if ((flag == QUIESCENCE_FLAG) || (flag == ALPHA_FLAG && score <= alpha) || (flag == BETA_FLAG && score >= beta)) {
+        if (flag == BOUND_EXACT || (flag == BOUND_UPPER && score <= alpha) || (flag == BOUND_LOWER && score >= beta)) {
             return score;
         }
     }
@@ -112,20 +113,20 @@ int alpha_beta(Board* board, bool* stop, HashMap* hashmap, int depth, int ply, i
     if (depth <= 0) {
         // Once depth of 0 is reached, search all remaining captures to reach a stable board state.
         int eval = quiescence(board, alpha, beta);
-        hashmap_set(hashmap, board_hash, eval, depth, QUIESCENCE_FLAG);
+        hashmap_set(hashmap, board_hash, eval, depth, BOUND_EXACT);
         return eval;
     }
 
-    // Null Moves.
+    // Null Move Pruning.
     switch_ply(board);
     uint8_t en_passant = board->en_passant;
     board->en_passant = 0;
-    int eval = -alpha_beta(board, stop, hashmap, depth - 1 - 2, ply + 1, -beta, -beta + 1);
+    int eval = -alpha_beta(board, stop, hashmap, depth - 2, ply + 2, -beta, -beta + 1);
     board->en_passant = en_passant;
     switch_ply(board);
 
     if (eval >= beta) {
-        hashmap_set(hashmap, board_hash, beta, depth, BETA_FLAG);
+        hashmap_set(hashmap, board_hash, beta, depth, BOUND_LOWER);
         return beta;
     }
 
@@ -145,10 +146,10 @@ int alpha_beta(Board* board, bool* stop, HashMap* hashmap, int depth, int ply, i
         Move* move = &moves[i];
         make_move(board, move);
         int eval = -alpha_beta(board, stop, hashmap, depth - 1, ply + 1, -beta, -alpha);
-        memcpy(board, &copy, sizeof(Board)); // Undo move.
+        *board = copy; // Undo move.
 
         if (eval >= beta) {
-            hashmap_set(hashmap, board_hash, beta, depth, ALPHA_FLAG);
+            hashmap_set(hashmap, board_hash, beta, depth, BOUND_LOWER);
             return beta;
         }
         if (eval > alpha) {
@@ -156,7 +157,7 @@ int alpha_beta(Board* board, bool* stop, HashMap* hashmap, int depth, int ply, i
         }
     }
 
-    hashmap_set(hashmap, board_hash, alpha, depth, ALPHA_FLAG);
+    hashmap_set(hashmap, board_hash, alpha, depth, BOUND_UPPER);
 
     return alpha;
 }
@@ -176,7 +177,7 @@ int quiescence(Board* board, int alpha, int beta) {
     for (int i = 0; i < n_moves; i++) {
         make_move(board, &moves[i]);
         eval = -quiescence(board, -beta, -alpha);
-        memcpy(board, &copy, sizeof(Board)); // Undo move.
+        *board = copy; // Undo move.
 
         if (eval >= beta) return beta;
         if (eval > alpha) alpha = eval;

@@ -34,7 +34,7 @@ typedef uint8_t Flag;
 #define ADD_PROMOTED_PIECE(x) ((x) << 2)
 #define PROMOTED_PIECE(x) (((x) & PROMOTION) >> 2)
 
-#define MAX_MOVES 256
+#define MAX_MOVES 218
 
 typedef struct {
     uint8_t to, from;
@@ -70,10 +70,7 @@ Bitboard gen_attacks(Board* board);
 
 int gen_moves(Board* board, Move* moves);
 int gen_captures(Board* board, Move* moves);
-
-Bitboard gen_checkers(Board* board);
-Bitboard gen_pinned(Board* board);
-Bitboard gen_pinned_rays(Board* board);
+Bitboard gen_checkers(Board* board, int position);
 int filter_legal(Board* board, Move* moves, int size);
 
 void make_move(Board* board, Move* move);

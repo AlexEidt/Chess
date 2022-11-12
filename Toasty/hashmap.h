@@ -4,9 +4,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define QUIESCENCE_FLAG 1
-#define ALPHA_FLAG 2
-#define BETA_FLAG 3
+#define BOUND_EXACT 1
+#define BOUND_UPPER 2
+#define BOUND_LOWER 3
 
 #define KEY_OFFSET 20
 
