@@ -1,5 +1,5 @@
 // Alex Eidt
-// Toasty Chess Engine.
+// Chess Engine.
 
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine.h"
@@ -8,11 +8,11 @@
 #include "olcPGEX_Sound.h"
 
 extern "C" {
-	#include "Toasty/bitboard.h"
-	#include "Toasty/board.h"
-	#include "Toasty/move.h"
-	#include "Toasty/search.h"
-	#include "Toasty/hashmap.h"
+	#include "Chess/bitboard.h"
+	#include "Chess/board.h"
+	#include "Chess/move.h"
+	#include "Chess/search.h"
+	#include "Chess/hashmap.h"
 }
 
 #define CAPTURE_AUDIO 0
