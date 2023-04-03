@@ -1,9 +1,9 @@
-# Toasty
+# Chess
 
 A Chess Engine with a GUI.
 
 <p align="center">
-    <img src="https://github.com/AlexEidt/docs/blob/master/Toasty/Toasty-Chess.gif" alt="Toasty Chess Engine Demo" />
+    <img src="https://github.com/AlexEidt/docs/blob/master/Toasty/Toasty-Chess.gif" alt="Chess Engine Demo" />
 </p>
 
 ## Features
@@ -18,11 +18,11 @@ A Chess Engine with a GUI.
 Below is an example showing usage of the chess engine without a GUI.
 
 ```C
-#include "Toasty/bitboard.h"
-#include "Toasty/board.h"
-#include "Toasty/move.h"
-#include "Toasty/search.h"
-#include "Toasty/hashmap.h"
+#include "Chess/bitboard.h"
+#include "Chess/board.h"
+#include "Chess/move.h"
+#include "Chess/search.h"
+#include "Chess/hashmap.h"
 
 int main() {
     init_magic_tables();
@@ -73,7 +73,7 @@ perft <depth>
 
 ## Resources
 
-The following resources/projects were very helpful in the creation of Toasty.
+The following resources/projects were very helpful in the creation of this Chess Engine.
 
 * [Blog Post by Josh Ervin on Move Generation](https://www.josherv.in/2021/03/19/chess-1/)
 * [Blog Post by Rhys Rustad-Elliott on Magic Bitboards](https://rhysre.net/fast-chess-move-generation-with-magic-bitboards.html)
