@@ -27,7 +27,7 @@ extern "C" {
 class Chess : public olc::PixelGameEngine {
 public:
 	Chess() {
-		sAppName = "Toasty";
+		sAppName = "Chess";
 	}
 
 private:
